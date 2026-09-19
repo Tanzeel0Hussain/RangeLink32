@@ -55,9 +55,11 @@ String renderPage() {
 .k{font-size:.72rem;text-transform:uppercase;color:var(--muted);letter-spacing:.08em}.v{font-size:1.25rem;font-weight:800;margin-top:7px}
 section{margin-top:14px}.btn{display:inline-block;border:0;border-radius:10px;padding:10px 13px;background:var(--accent);color:#041019;font-weight:800;cursor:pointer;text-decoration:none}
 .btn.secondary{background:#132b40;color:var(--text);border:1px solid var(--line)}.btn.danger{background:#5a2030;color:#ffd5dd}
-input{width:100%;background:#091623;border:1px solid var(--line);color:var(--text);border-radius:10px;padding:11px;margin:6px 0}
-.row{display:flex;gap:10px;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding:11px 0}.row:last-child{border-bottom:0}
+input,select{width:100%;background:#091623;border:1px solid var(--line);color:var(--text);border-radius:10px;padding:11px;margin:6px 0}
+.row{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;border-bottom:1px solid var(--line);padding:13px 0}.row:last-child{border-bottom:0}
 .meta{color:var(--muted);font-size:.78rem;margin-top:4px}.actions{display:flex;gap:7px;flex-wrap:wrap}
+.client-tools{display:grid;grid-template-columns:repeat(2,minmax(180px,1fr));gap:8px;margin-top:10px}.client-tools form{border:1px solid var(--line);border-radius:12px;padding:9px;background:#091623}
+.client-tools label{display:block;color:var(--muted);font-size:.72rem;margin-top:4px}.client-tools .btn{width:100%;margin-top:5px}
 small{color:var(--muted);line-height:1.5}@media(max-width:850px){.grid{grid-template-columns:1fr 1fr}}@media(max-width:430px){.grid{grid-template-columns:1fr}.row{align-items:flex-start;flex-direction:column}}
 </style></head><body><main class="wrap">
 <div class="brand"><h1>RangeLink32</h1><p>Smart ESP32 Wi-Fi Extender & Managed Gateway</p></div>
@@ -104,7 +106,7 @@ small{color:var(--muted);line-height:1.5}@media(max-width:850px){.grid{grid-temp
 </div>
 <p><small>Current access mode: <b>)HTML" +
           String(getAccessMode() == AccessMode::AllowlistOnly ? "Allowlisted only" : "Allow all") +
-          R"HTML(</b>. In allowlist mode, devices that are not approved are disconnected from the RangeLink32 AP. Per-device NAPT-only blocking without disconnecting is a later routing milestone.</small></p>
+          R"HTML(</b>. Devices may remain connected to the RangeLink32 Wi-Fi while Internet forwarding is blocked. Local admin access and DHCP/ARP stay available.</small></p>
 <div id="clients"><small>Loading client inventory…</small></div>
 </section>
 
@@ -131,6 +133,15 @@ small{color:var(--muted);line-height:1.5}@media(max-width:850px){.grid{grid-temp
 <button class="btn" type="submit">Save & Restart</button>
 </form>
 <p><small>Changing the hotspot settings restarts the ESP32. Reconnect using the new SSID/password and open <b>192.168.50.1</b>.</small></p>
+</section>
+
+<section class="card">
+<h3>Time & Scheduling</h3>
+<form method="post" action="/settings/timezone">
+<label><small>Timezone offset from UTC in minutes (Pakistan = 300)</small></label>
+<input name="minutes" type="number" min="-720" max="840" value=")HTML" + String(getTimezoneOffsetMinutes()) + R"HTML(" required>
+<button class="btn" type="submit">Save Timezone & Restart</button>
+</form>
 </section>
 
 <section class="card">
@@ -194,26 +205,85 @@ function bytes(v){
 async function loadClients(){
   const data=await (await fetch('/api/clients')).json();
   const box=document.getElementById('clients');
-  box.innerHTML=data.length?data.map(c=>`
+
+  box.innerHTML=data.length?data.map(c=>{
+    const total=c.rxBytes+c.txBytes;
+    const daily=c.dailyRxBytes+c.dailyTxBytes;
+    const quota=c.dailyQuotaBytes?bytes(c.dailyQuotaBytes):'Unlimited';
+    const speed=c.bandwidthKbps?c.bandwidthKbps+' kbps':'Unlimited';
+
+    return `
     <div class="row">
-      <div>
-        <b>${esc(c.mac)}</b>
-        <div class="meta">${c.connected?'Connected':'Previously seen'} · IP ${esc(c.ip||'—')}${c.connected?' · '+c.rssi+' dBm':''}</div>
-        <div class="meta">Internet policy: ${c.allowed?'Allowed':'Blocked'} · Usage counters: ${bytes(c.rxBytes+c.txBytes)}</div>
+      <div style="flex:1;min-width:0">
+        <b>${esc(c.hostname||c.mac)}</b>
+        <div class="meta">${esc(c.mac)} · ${c.connected?'Connected':'Previously seen'} · IP ${esc(c.ip||'—')}${c.connected?' · '+c.rssi+' dBm':''}</div>
+        <div class="meta">Internet: <b>${c.allowed?'Allowed':'Blocked'}</b>${c.guest?' · Guest access active':''}</div>
+        <div class="meta">Today: ${bytes(daily)} / ${quota} · Total: ${bytes(total)} · Speed cap: ${speed}</div>
+        <div class="meta">Schedule: ${c.scheduleEnabled?(c.scheduleStart+':00–'+c.scheduleEnd+':00'):'Always'}</div>
+
+        <div class="client-tools">
+          <form method="post" action="/client/name">
+            <input type="hidden" name="mac" value="${esc(c.mac)}">
+            <label>Device name</label>
+            <input name="name" maxlength="32" value="${esc(c.hostname||'')}" placeholder="e.g. My Laptop">
+            <button class="btn secondary">Save Name</button>
+          </form>
+
+          <form method="post" action="/client/limits">
+            <input type="hidden" name="mac" value="${esc(c.mac)}">
+            <label>Daily quota in MB (0 = unlimited)</label>
+            <input name="quotaMB" type="number" min="0" value="${Math.round((c.dailyQuotaBytes||0)/1048576)}">
+            <label>Bandwidth cap kbps (0 = unlimited)</label>
+            <input name="kbps" type="number" min="0" value="${c.bandwidthKbps||0}">
+            <button class="btn secondary">Save Limits</button>
+          </form>
+
+          <form method="post" action="/client/schedule">
+            <input type="hidden" name="mac" value="${esc(c.mac)}">
+            <label><input style="width:auto" type="checkbox" name="enabled" value="1" ${c.scheduleEnabled?'checked':''}> Enable daily schedule</label>
+            <label>Start hour (0–23)</label>
+            <input name="start" type="number" min="0" max="23" value="${c.scheduleStart}">
+            <label>End hour (1–24)</label>
+            <input name="end" type="number" min="0" max="24" value="${c.scheduleEnd}">
+            <button class="btn secondary">Save Schedule</button>
+          </form>
+
+          <form method="post" action="/client/guest">
+            <input type="hidden" name="mac" value="${esc(c.mac)}">
+            <label>Temporary guest Internet (minutes)</label>
+            <input name="minutes" type="number" min="1" max="10080" value="60">
+            <button class="btn secondary">Grant Guest Access</button>
+          </form>
+        </div>
       </div>
+
       <div class="actions">
         <form method="post" action="/client/approve">
           <input type="hidden" name="mac" value="${esc(c.mac)}">
           <input type="hidden" name="approved" value="${c.approved?'0':'1'}">
           <button class="btn secondary">${c.approved?'Remove approval':'Approve'}</button>
         </form>
+
         <form method="post" action="/client/block">
           <input type="hidden" name="mac" value="${esc(c.mac)}">
           <input type="hidden" name="blocked" value="${c.blocked?'0':'1'}">
-          <button class="btn ${c.blocked?'secondary':'danger'}">${c.blocked?'Unblock':'Block'}</button>
+          <button class="btn ${c.blocked?'secondary':'danger'}">${c.blocked?'Unblock Internet':'Block Internet'}</button>
+        </form>
+
+        <form method="post" action="/client/reset-usage">
+          <input type="hidden" name="mac" value="${esc(c.mac)}">
+          <input type="hidden" name="total" value="0">
+          <button class="btn secondary">Reset Today</button>
+        </form>
+
+        <form method="post" action="/client/reset-usage" onsubmit="return confirm('Reset all saved usage for this device?')">
+          <input type="hidden" name="mac" value="${esc(c.mac)}">
+          <input type="hidden" name="total" value="1">
+          <button class="btn danger">Reset All Usage</button>
         </form>
       </div>
-    </div>`).join(''):'<small>No devices have connected yet.</small>';
+    </div>`;
+  }).join(''):'<small>No devices have connected yet.</small>';
 }
 
 async function loadLogs(){
@@ -355,6 +425,115 @@ void webAdminBegin() {
     server.send(303);
   });
 
+  server.on("/client/name", HTTP_POST, []() {
+    if (!requireAdmin()) return;
+
+    setClientName(
+      server.arg("mac"),
+      server.arg("name")
+    );
+
+    server.sendHeader("Location", "/");
+    server.send(303);
+  });
+
+  server.on("/client/limits", HTTP_POST, []() {
+    if (!requireAdmin()) return;
+
+    const uint64_t quotaMB =
+      static_cast<uint64_t>(
+        server.arg("quotaMB").toInt()
+      );
+
+    const uint32_t kbps =
+      static_cast<uint32_t>(
+        server.arg("kbps").toInt()
+      );
+
+    setClientLimits(
+      server.arg("mac"),
+      quotaMB * 1024ULL * 1024ULL,
+      kbps
+    );
+
+    server.sendHeader("Location", "/");
+    server.send(303);
+  });
+
+  server.on("/client/schedule", HTTP_POST, []() {
+    if (!requireAdmin()) return;
+
+    const bool enabled =
+      server.hasArg("enabled") &&
+      server.arg("enabled") == "1";
+
+    const int start =
+      server.arg("start").toInt();
+
+    const int end =
+      server.arg("end").toInt();
+
+    if (
+      start < 0 || start > 23 ||
+      end < 0 || end > 24
+    ) {
+      server.send(
+        400,
+        "text/plain",
+        "Invalid schedule."
+      );
+      return;
+    }
+
+    setClientSchedule(
+      server.arg("mac"),
+      enabled,
+      static_cast<uint8_t>(start),
+      static_cast<uint8_t>(end)
+    );
+
+    server.sendHeader("Location", "/");
+    server.send(303);
+  });
+
+  server.on("/client/guest", HTTP_POST, []() {
+    if (!requireAdmin()) return;
+
+    const long minutes =
+      server.arg("minutes").toInt();
+
+    if (
+      minutes < 1 ||
+      minutes > 10080 ||
+      !grantGuestAccess(
+        server.arg("mac"),
+        static_cast<uint32_t>(minutes)
+      )
+    ) {
+      server.send(
+        400,
+        "text/plain",
+        "Guest access requires synchronized Internet time and a valid duration."
+      );
+      return;
+    }
+
+    server.sendHeader("Location", "/");
+    server.send(303);
+  });
+
+  server.on("/client/reset-usage", HTTP_POST, []() {
+    if (!requireAdmin()) return;
+
+    resetClientUsage(
+      server.arg("mac"),
+      server.arg("total") == "1"
+    );
+
+    server.sendHeader("Location", "/");
+    server.send(303);
+  });
+
   server.on("/logs/clear", HTTP_POST, []() {
     if (!requireAdmin()) return;
     clearEventLogs();
@@ -382,6 +561,37 @@ void webAdminBegin() {
       "text/html",
       "<h2>RangeLink32 settings saved.</h2><p>The ESP32 is restarting. Reconnect to the new Wi-Fi and open 192.168.50.1.</p>"
     );
+    scheduleRestart();
+  });
+
+  server.on("/settings/timezone", HTTP_POST, []() {
+    if (!requireAdmin()) return;
+
+    const int minutes =
+      server.arg("minutes").toInt();
+
+    if (minutes < -720 || minutes > 840) {
+      server.send(
+        400,
+        "text/plain",
+        "Timezone offset must be between -720 and 840 minutes."
+      );
+      return;
+    }
+
+    setTimezoneOffsetMinutes(minutes);
+    appendEventLog(
+      "settings",
+      "Timezone changed to UTC offset " +
+      String(minutes) + " minutes"
+    );
+
+    server.send(
+      200,
+      "text/html",
+      "<h2>Timezone saved.</h2><p>RangeLink32 is restarting…</p>"
+    );
+
     scheduleRestart();
   });
 

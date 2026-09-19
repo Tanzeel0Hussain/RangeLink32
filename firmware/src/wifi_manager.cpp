@@ -247,6 +247,13 @@ void maintainUpstream() {
 }
 
 void wifiManagerBegin() {
+  configTime(
+    getTimezoneOffsetMinutes() * 60,
+    0,
+    "pool.ntp.org",
+    "time.google.com"
+  );
+
   WiFi.mode(WIFI_AP_STA);
   WiFi.setSleep(false);
 
