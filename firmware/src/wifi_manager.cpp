@@ -14,6 +14,7 @@ SystemState state;
 
 String targetSsid;
 String targetPassword;
+bool targetOpenNetwork = false;
 
 String scanSsids[MAX_SCAN_RESULTS];
 int32_t scanRssi[MAX_SCAN_RESULTS];
@@ -199,20 +200,38 @@ void performScan() {
   lastScanMs = millis();
 }
 
-void startTarget(const String& ssid, const String& password) {
+void startTarget(
+  const String& ssid,
+  const String& password,
+  bool openNetwork
+) {
   targetSsid = ssid;
-  targetPassword = password;
+  targetPassword =
+    openNetwork ? "" : password;
+  targetOpenNetwork = openNetwork;
 
   reconnectAttempts = 0;
   reconnectDelayMs = RangeLinkConfig::RECONNECT_MIN_MS;
   lastReconnectAttempt = millis();
 
   WiFi.disconnect();
-  WiFi.begin(targetSsid.c_str(), targetPassword.c_str());
+
+  if (targetOpenNetwork) {
+    WiFi.begin(targetSsid.c_str());
+  } else {
+    WiFi.begin(
+      targetSsid.c_str(),
+      targetPassword.c_str()
+    );
+  }
 
   Serial.print("RangeLink32 upstream target: ");
   Serial.println(targetSsid);
-  appendEventLog("upstream", "Connecting to " + targetSsid);
+  appendEventLog(
+    "upstream",
+    "Connecting to " + targetSsid +
+    (targetOpenNetwork ? " (open)" : "")
+  );
 }
 
 bool selectBestSavedProfile(bool preferDifferent) {
@@ -225,7 +244,11 @@ bool selectBestSavedProfile(bool preferDifferent) {
   int32_t bestRssi = -128;
 
   for (size_t i = 0; i < count; ++i) {
-    if (!profiles[i].enabled || profiles[i].secret.length() < 8) continue;
+    if (
+      !profiles[i].enabled ||
+      (!profiles[i].openNetwork &&
+       profiles[i].secret.length() < 8)
+    ) continue;
 
     const int32_t rssi = scannedRssiFor(profiles[i].ssid);
     if (rssi <= -127) continue;
@@ -258,7 +281,11 @@ bool selectBestSavedProfile(bool preferDifferent) {
     );
   }
 
-  startTarget(profiles[bestIndex].ssid, profiles[bestIndex].secret);
+  startTarget(
+    profiles[bestIndex].ssid,
+    profiles[bestIndex].secret,
+    profiles[bestIndex].openNetwork
+  );
   return true;
 }
 
@@ -298,7 +325,15 @@ void maintainUpstream() {
   Serial.println(targetSsid);
 
   WiFi.disconnect();
-  WiFi.begin(targetSsid.c_str(), targetPassword.c_str());
+
+  if (targetOpenNetwork) {
+    WiFi.begin(targetSsid.c_str());
+  } else {
+    WiFi.begin(
+      targetSsid.c_str(),
+      targetPassword.c_str()
+    );
+  }
 
   const unsigned long next = reconnectDelayMs * 2UL;
   reconnectDelayMs =
@@ -390,6 +425,8 @@ String getSavedProfilesJson() {
             "\",\"priority\":" + String(profiles[i].priority) +
             ",\"enabled\":" +
             String(profiles[i].enabled ? "true" : "false") +
+            ",\"open\":" +
+            String(profiles[i].openNetwork ? "true" : "false") +
             ",\"current\":" +
             String(WiFi.status() == WL_CONNECTED &&
                    WiFi.SSID() == profiles[i].ssid ? "true" : "false") +
@@ -454,19 +491,35 @@ SystemState getSystemState() {
   return state;
 }
 
-bool connectUpstream(const String& ssid, const String& password) {
-  if (ssid.length() == 0 || password.length() < 8) return false;
+bool connectUpstream(
+  const String& ssid,
+  const String& password,
+  bool openNetwork
+) {
+  if (
+    ssid.length() == 0 ||
+    ssid.length() > 32 ||
+    (!openNetwork && password.length() < 8)
+  ) {
+    return false;
+  }
 
   WifiProfile profile;
   profile.ssid = ssid;
-  profile.secret = password;
+  profile.secret =
+    openNetwork ? "" : password;
   profile.enabled = true;
+  profile.openNetwork = openNetwork;
 
   if (!saveWifiProfile(profile)) {
     return false;
   }
 
-  startTarget(ssid, password);
+  startTarget(
+    ssid,
+    profile.secret,
+    openNetwork
+  );
   return true;
 }
 
@@ -476,10 +529,17 @@ bool connectSavedProfile(const String& ssid) {
     loadWifiProfiles(profiles, RangeLinkConfig::MAX_WIFI_PROFILES);
 
   for (size_t i = 0; i < count; ++i) {
-    if (profiles[i].ssid == ssid &&
-        profiles[i].enabled &&
-        profiles[i].secret.length() >= 8) {
-      startTarget(profiles[i].ssid, profiles[i].secret);
+    if (
+      profiles[i].ssid == ssid &&
+      profiles[i].enabled &&
+      (profiles[i].openNetwork ||
+       profiles[i].secret.length() >= 8)
+    ) {
+      startTarget(
+        profiles[i].ssid,
+        profiles[i].secret,
+        profiles[i].openNetwork
+      );
       return true;
     }
   }
@@ -494,6 +554,7 @@ bool forgetSavedProfile(const String& ssid) {
   if (targetSsid == ssid) {
     targetSsid = "";
     targetPassword = "";
+    targetOpenNetwork = false;
     WiFi.disconnect();
     performScan();
     selectBestSavedProfile(false);

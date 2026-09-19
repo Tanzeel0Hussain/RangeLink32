@@ -30,15 +30,27 @@ String clientKey(size_t index, const char* suffix) {
 
 void writeWifiSlot(size_t index, const WifiProfile& profile) {
   prefs.putString(wifiKey(index, "s").c_str(), profile.ssid);
-  const String protectedSecret =
-    protectSecret(profile.secret);
+  prefs.putBool(
+    wifiKey(index, "o").c_str(),
+    profile.openNetwork
+  );
 
-  if (protectedSecret.length() > 0) {
-    prefs.putString(
-      wifiKey(index, "p").c_str(),
-      protectedSecret
+  if (profile.openNetwork) {
+    prefs.remove(
+      wifiKey(index, "p").c_str()
     );
+  } else {
+    const String protectedSecret =
+      protectSecret(profile.secret);
+
+    if (protectedSecret.length() > 0) {
+      prefs.putString(
+        wifiKey(index, "p").c_str(),
+        protectedSecret
+      );
+    }
   }
+
   prefs.putInt(wifiKey(index, "q").c_str(), profile.priority);
   prefs.putInt(wifiKey(index, "r").c_str(), profile.lastRssi);
   prefs.putBool(wifiKey(index, "e").c_str(), profile.enabled);
@@ -49,6 +61,7 @@ void writeWifiSlot(size_t index, const WifiProfile& profile) {
 void clearWifiSlot(size_t index) {
   prefs.remove(wifiKey(index, "s").c_str());
   prefs.remove(wifiKey(index, "p").c_str());
+  prefs.remove(wifiKey(index, "o").c_str());
   prefs.remove(wifiKey(index, "q").c_str());
   prefs.remove(wifiKey(index, "r").c_str());
   prefs.remove(wifiKey(index, "e").c_str());
@@ -362,13 +375,21 @@ size_t loadWifiProfiles(WifiProfile* out, size_t maxCount) {
 
     profile.ssid =
       prefs.getString(wifiKey(i, "s").c_str(), "");
-    profile.secret =
-      unprotectSecret(
-        prefs.getString(
-          wifiKey(i, "p").c_str(),
-          ""
-        )
+    profile.openNetwork =
+      prefs.getBool(
+        wifiKey(i, "o").c_str(),
+        false
       );
+
+    profile.secret =
+      profile.openNetwork
+        ? ""
+        : unprotectSecret(
+            prefs.getString(
+              wifiKey(i, "p").c_str(),
+              ""
+            )
+          );
     profile.priority =
       prefs.getInt(wifiKey(i, "q").c_str(), 100);
     profile.lastRssi =
@@ -388,7 +409,12 @@ size_t loadWifiProfiles(WifiProfile* out, size_t maxCount) {
 }
 
 bool saveWifiProfile(const WifiProfile& profile) {
-  if (profile.ssid.length() == 0 || profile.secret.length() < 8) {
+  if (
+    profile.ssid.length() == 0 ||
+    profile.ssid.length() > 32 ||
+    (!profile.openNetwork &&
+      profile.secret.length() < 8)
+  ) {
     return false;
   }
 

@@ -266,8 +266,12 @@ small{color:var(--muted);line-height:1.5}@media(max-width:850px){.grid{grid-temp
 <section class="card">
 <h3>Connect a Network</h3>
 <form method="post" action="/connect">
-<input id="ssid" name="ssid" placeholder="Wi-Fi name (SSID)" required>
-<input name="password" type="password" placeholder="Wi-Fi password" minlength="8" required>
+<input id="ssid" name="ssid" maxlength="32" placeholder="Wi-Fi name (SSID)" required>
+<select id="network-security" name="security" onchange="syncNetworkSecurity()">
+<option value="secured">Secured network</option>
+<option value="open">Open network (no password)</option>
+</select>
+<input id="upstream-password" name="password" type="password" placeholder="Wi-Fi password" minlength="8">
 <button class="btn" type="submit">Connect & Save</button>
 </form>
 </section>
@@ -394,12 +398,15 @@ async function loadNetworks(){
   box.innerHTML=data.length?data.map(n=>`
     <div class="row">
       <div><b>${esc(n.ssid||'<hidden>')}</b><div class="meta">${n.rssi} dBm · CH ${n.channel} · ${n.secure?'Secured':'Open'}</div></div>
-      <button class="btn secondary pick-network" type="button" data-ssid="${esc(n.ssid)}">Select</button>
+      <button class="btn secondary pick-network" type="button" data-ssid="${esc(n.ssid)}" data-secure="${n.secure?'1':'0'}">Select</button>
     </div>`).join(''):'<small>No networks found.</small>';
 
   box.querySelectorAll('.pick-network').forEach(button=>{
     button.addEventListener('click',()=>{
-      pickSsid(button.dataset.ssid||'');
+      pickSsid(
+        button.dataset.ssid||'',
+        button.dataset.secure!=='0'
+      );
     });
   });
 }
@@ -540,7 +547,7 @@ async function loadProfiles(){
     <div class="row">
       <div>
         <b>${esc(p.ssid)}</b>
-        <div class="meta">Priority ${p.priority}${p.current?' · Connected':''} · Last RSSI ${p.lastRssi} dBm</div>
+        <div class="meta">${p.open?'Open network · ':''}Priority ${p.priority}${p.current?' · Connected':''} · Last RSSI ${p.lastRssi} dBm</div>
         <div class="meta">Usage: ↓ ${bytes(p.rxBytes)} · ↑ ${bytes(p.txBytes)} · Total ${bytes(p.rxBytes+p.txBytes)}</div>
       </div>
       <div class="actions">
@@ -550,11 +557,12 @@ async function loadProfiles(){
           <input name="priority" type="number" min="1" max="9999" value="${p.priority}" style="width:92px" title="Lower number = higher failover priority">
           <button class="btn secondary">Save Priority</button>
         </form>
+${!p.open?`
         <form method="post" action="/profile/reveal" target="_blank">
           <input type="hidden" name="ssid" value="${esc(p.ssid)}">
           <input name="admin_password" type="password" placeholder="Admin password" required>
           <button class="btn secondary">Reveal Password</button>
-        </form>
+        </form>`:''}
         <form method="post" action="/profile/forget"><input type="hidden" name="ssid" value="${esc(p.ssid)}"><button class="btn danger">Forget</button></form>
       </div>
     </div>`).join(''):'<small>No saved networks yet.</small>';
@@ -569,10 +577,25 @@ async function loadChannels(){
   }).join('');
 }
 
-function pickSsid(ssid){
+function syncNetworkSecurity(){
+  const security=document.getElementById('network-security');
+  const password=document.getElementById('upstream-password');
+  const secured=security.value==='secured';
+
+  password.required=secured;
+  password.disabled=!secured;
+
+  if(!secured) password.value='';
+}
+
+function pickSsid(ssid,secured=true){
   document.getElementById('ssid').value=ssid;
+  document.getElementById('network-security').value=secured?'secured':'open';
+  syncNetworkSecurity();
   document.getElementById('ssid').scrollIntoView({behavior:'smooth',block:'center'});
 }
+
+syncNetworkSecurity();
 
 function prepareOta(form){
   const sha=document.getElementById('ota-sha256').value.trim().toLowerCase();
@@ -704,9 +727,13 @@ void webAdminBegin() {
   server.on("/connect", HTTP_POST, []() {
     if (!requireAdmin()) return;
 
+    const bool openNetwork =
+      server.arg("security") == "open";
+
     const bool ok = connectUpstream(
       server.arg("ssid"),
-      server.arg("password")
+      server.arg("password"),
+      openNetwork
     );
 
     server.sendHeader("Location", ok ? "/" : "/?error=connect");
@@ -771,12 +798,13 @@ void webAdminBegin() {
       !getWifiProfileSecret(
         server.arg("ssid"),
         secret
-      )
+      ) ||
+      secret.length() == 0
     ) {
       server.send(
         404,
         "text/plain",
-        "Saved network not found."
+        "Saved network not found or it is an open network with no password."
       );
       return;
     }

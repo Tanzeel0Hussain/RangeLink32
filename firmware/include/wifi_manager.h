@@ -11,7 +11,11 @@ String getSavedProfilesJson();
 String getChannelAnalysisJson();
 SystemState getSystemState();
 
-bool connectUpstream(const String& ssid, const String& password);
+bool connectUpstream(
+  const String& ssid,
+  const String& password,
+  bool openNetwork = false
+);
 bool connectSavedProfile(const String& ssid);
 bool forgetSavedProfile(const String& ssid);
 void reconnectUpstream();

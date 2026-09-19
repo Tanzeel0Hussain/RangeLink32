@@ -9,6 +9,7 @@ struct WifiProfile {
   uint64_t rxBytes = 0;
   uint64_t txBytes = 0;
   bool enabled = true;
+  bool openNetwork = false;
 };
 
 struct ClientRecord {
