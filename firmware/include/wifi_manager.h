@@ -7,8 +7,12 @@ void wifiManagerLoop();
 
 void requestWifiScan();
 String getWifiScanJson();
+String getSavedProfilesJson();
 SystemState getSystemState();
 
 bool connectUpstream(const String& ssid, const String& password);
+bool connectSavedProfile(const String& ssid);
+bool forgetSavedProfile(const String& ssid);
 void reconnectUpstream();
+
 bool setAccessPointCredentials(const String& ssid, const String& password);
