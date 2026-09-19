@@ -36,8 +36,3 @@ bool routerEngineReady() {
   return ready;
 }
 
-bool setClientInternetAccess(const String&, bool) {
-  // Per-client forwarding policy is implemented in the access-control
-  // milestone. NAPT itself is enabled for the AP when upstream is online.
-  return false;
-}
