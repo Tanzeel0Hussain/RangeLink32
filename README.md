@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/rangelink32-hero.webp" alt="RangeLink32 3D project hero" width="100%">
+<a href="https://tanzeel0hussain.github.io/RangeLink32/"><img src="https://raw.githubusercontent.com/Tanzeel0Hussain/RangeLink32/main/assets/rangelink32-hero.webp?raw=1" alt="RangeLink32 3D project hero" width="100%"></a>
 
 # RangeLink32
 
