@@ -18,6 +18,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: rangelink32-firmware-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -95,15 +99,16 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git pull --rebase origin main
           git add -f docs/firmware/*.bin
 
           if git diff --cached --quiet; then
             echo "Browser firmware already current."
           else
             git commit -m "build: update RangeLink32 browser firmware [skip ci]"
-            git push
           fi
+
+          git pull --rebase origin main
+          git push
 
       - name: Publish v1.0.0 firmware release
         if: github.event_name != 'pull_request'
