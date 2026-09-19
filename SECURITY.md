@@ -19,3 +19,10 @@ Firmware uploaded through the OTA page should come from the project's own releas
 ## Reporting
 
 Do not publish real Wi-Fi passwords, private network inventories, tokens, backup contents or personal device identifiers in public issues.
+
+
+## OTA integrity
+
+The local OTA updater requires the SHA-256 digest published with the matching official RangeLink32 release. The ESP32 hashes the uploaded firmware while streaming it and rejects the update if the calculated digest does not match. Tagged releases publish a `SHA256SUMS.txt` file alongside the firmware assets.
+
+This verifies that the uploaded bytes match the digest the administrator intentionally supplied from the trusted release page. Hardware-enforced authenticity against a fully compromised administrator or physical attacker still requires Secure Boot / signed-image infrastructure.

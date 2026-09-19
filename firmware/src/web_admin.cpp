@@ -1,6 +1,7 @@
 #include <WebServer.h>
 #include <Update.h>
 #include <esp_system.h>
+#include "mbedtls/sha256.h"
 #include <vector>
 #include "qrcode.h"
 #include "web_admin.h"
@@ -14,6 +15,43 @@ WebServer server(80);
 bool restartPending = false;
 unsigned long restartRequestedAt = 0;
 String csrfToken;
+mbedtls_sha256_context otaShaContext;
+bool otaShaActive = false;
+bool otaVerified = false;
+String otaExpectedSha;
+
+bool validSha256Hex(String value) {
+  value.trim();
+  if (value.length() != 64) return false;
+
+  for (size_t i = 0; i < value.length(); ++i) {
+    const char c = value[i];
+    if (
+      !((c >= '0' && c <= '9') ||
+        (c >= 'a' && c <= 'f') ||
+        (c >= 'A' && c <= 'F'))
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+String sha256Hex(const uint8_t hash[32]) {
+  static const char hex[] =
+    "0123456789abcdef";
+
+  String output;
+  output.reserve(64);
+
+  for (size_t i = 0; i < 32; ++i) {
+    output += hex[(hash[i] >> 4) & 0x0F];
+    output += hex[hash[i] & 0x0F];
+  }
+
+  return output;
+}
 
 String makeCsrfToken() {
   char token[33];
@@ -302,11 +340,13 @@ small{color:var(--muted);line-height:1.5}@media(max-width:850px){.grid{grid-temp
 
 <section class="card">
 <h3>OTA Firmware Update</h3>
-<form method="post" action="/update" enctype="multipart/form-data">
+<form id="ota-form" method="post" action="/update" enctype="multipart/form-data" onsubmit="return prepareOta(this)">
+<label><small>Official SHA-256 from the matching RangeLink32 release</small></label>
+<input id="ota-sha256" name="expected_sha256" minlength="64" maxlength="64" pattern="[A-Fa-f0-9]{64}" placeholder="64-character SHA-256" required>
 <input type="file" name="firmware" accept=".bin,application/octet-stream" required>
-<button class="btn" type="submit">Upload Firmware & Restart</button>
+<button class="btn" type="submit">Verify, Upload & Restart</button>
 </form>
-<p><small>Upload only a RangeLink32 firmware <code>.bin</code> built for your ESP32 board. Keep the device powered during the update.</small></p>
+<p><small>Use only the official RangeLink32 OTA <code>.bin</code> and copy its SHA-256 from the matching release <code>SHA256SUMS.txt</code>. The update is rejected if the uploaded bytes do not match that digest.</small></p>
 </section>
 
 <section class="card">
@@ -527,6 +567,17 @@ async function loadChannels(){
 function pickSsid(ssid){
   document.getElementById('ssid').value=ssid;
   document.getElementById('ssid').scrollIntoView({behavior:'smooth',block:'center'});
+}
+
+function prepareOta(form){
+  const sha=document.getElementById('ota-sha256').value.trim().toLowerCase();
+  if(!/^[a-f0-9]{64}$/.test(sha)){
+    alert('Enter the 64-character SHA-256 from the official RangeLink32 release.');
+    return false;
+  }
+
+  form.action='/update?csrf='+encodeURIComponent(csrfToken)+'&sha256='+encodeURIComponent(sha);
+  return true;
 }
 
 async function scanNow(){
@@ -1086,22 +1137,34 @@ void webAdminBegin() {
     []() {
       if (!requireAdmin()) return;
 
-      const bool ok = !Update.hasError();
+      const bool ok =
+        otaVerified &&
+        !Update.hasError();
+
       if (ok) {
-        appendEventLog("ota", "Firmware update completed");
+        appendEventLog(
+          "ota",
+          "Firmware SHA-256 verified and update completed"
+        );
       } else {
-        appendEventLog("ota", "Firmware update failed");
+        appendEventLog(
+          "ota",
+          "Firmware update rejected or failed"
+        );
       }
 
       server.send(
-        ok ? 200 : 500,
+        ok ? 200 : 400,
         "text/html",
         ok
-          ? "<h2>Firmware update complete.</h2><p>RangeLink32 is restarting…</p>"
-          : "<h2>Firmware update failed.</h2><p>The current firmware remains active.</p>"
+          ? "<h2>Firmware verified and updated.</h2><p>RangeLink32 is restarting…</p>"
+          : "<h2>Firmware update rejected.</h2><p>The SHA-256 did not match, the file was invalid, or the upload failed. The current firmware remains active.</p>"
       );
 
       if (ok) scheduleRestart();
+
+      otaVerified = false;
+      otaExpectedSha = "";
     },
     []() {
       if (
@@ -1117,16 +1180,127 @@ void webAdminBegin() {
       HTTPUpload& upload = server.upload();
 
       if (upload.status == UPLOAD_FILE_START) {
-        Update.begin(UPDATE_SIZE_UNKNOWN);
-      } else if (upload.status == UPLOAD_FILE_WRITE) {
-        if (!Update.hasError()) {
-          Update.write(upload.buf, upload.currentSize);
+        otaVerified = false;
+        otaExpectedSha =
+          server.arg("sha256");
+        otaExpectedSha.toLowerCase();
+        otaExpectedSha.trim();
+
+        if (
+          !upload.filename.endsWith(".bin") ||
+          !validSha256Hex(otaExpectedSha)
+        ) {
+          Update.abort();
+          return;
         }
-      } else if (upload.status == UPLOAD_FILE_END) {
-        if (!Update.hasError()) {
-          Update.end(true);
+
+        mbedtls_sha256_init(
+          &otaShaContext
+        );
+
+        if (
+          mbedtls_sha256_starts(
+            &otaShaContext,
+            0
+          ) != 0
+        ) {
+          mbedtls_sha256_free(
+            &otaShaContext
+          );
+          Update.abort();
+          return;
         }
-      } else if (upload.status == UPLOAD_FILE_ABORTED) {
+
+        otaShaActive = true;
+
+        if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
+          mbedtls_sha256_free(
+            &otaShaContext
+          );
+          otaShaActive = false;
+          return;
+        }
+      } else if (
+        upload.status == UPLOAD_FILE_WRITE
+      ) {
+        if (
+          otaShaActive &&
+          !Update.hasError()
+        ) {
+          mbedtls_sha256_update(
+            &otaShaContext,
+            upload.buf,
+            upload.currentSize
+          );
+
+          const size_t written =
+            Update.write(
+              upload.buf,
+              upload.currentSize
+            );
+
+          if (
+            written !=
+            upload.currentSize
+          ) {
+            Update.abort();
+          }
+        }
+      } else if (
+        upload.status == UPLOAD_FILE_END
+      ) {
+        if (
+          otaShaActive &&
+          !Update.hasError()
+        ) {
+          uint8_t digest[32];
+
+          const int shaResult =
+            mbedtls_sha256_finish(
+              &otaShaContext,
+              digest
+            );
+
+          mbedtls_sha256_free(
+            &otaShaContext
+          );
+          otaShaActive = false;
+
+          const String calculated =
+            shaResult == 0
+              ? sha256Hex(digest)
+              : "";
+
+          memset(
+            digest,
+            0,
+            sizeof(digest)
+          );
+
+          if (
+            calculated !=
+            otaExpectedSha
+          ) {
+            Update.abort();
+            otaVerified = false;
+            return;
+          }
+
+          otaVerified =
+            Update.end(true);
+        }
+      } else if (
+        upload.status ==
+          UPLOAD_FILE_ABORTED
+      ) {
+        if (otaShaActive) {
+          mbedtls_sha256_free(
+            &otaShaContext
+          );
+          otaShaActive = false;
+        }
+
+        otaVerified = false;
         Update.abort();
       }
     }

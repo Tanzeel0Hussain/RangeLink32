@@ -225,7 +225,7 @@ The **[v1.0.0 release](https://github.com/Tanzeel0Hussain/RangeLink32/releases/t
 | Firmware file | Purpose |
 |---|---|
 | `rangelink32-full.bin` | Combined first-install image; flash from offset `0x0` |
-| `rangelink32-ota.bin` | Application image for the RangeLink32 local OTA updater |
+| `rangelink32-ota.bin` | Application image for the local OTA updater; the updater requires its official SHA-256 digest |
 
 Direct first-install firmware: **[Download `rangelink32-full.bin`](https://github.com/Tanzeel0Hussain/RangeLink32/releases/download/v1.0.0/rangelink32-full.bin)**
 
