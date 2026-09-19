@@ -34,7 +34,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install PlatformIO
-        run: pip install platformio
+        run: pip install platformio esptool
 
       - name: Build ESP32 firmware
         run: pio run -e esp32dev
