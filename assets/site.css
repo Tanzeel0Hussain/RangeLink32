@@ -88,6 +88,19 @@ a{color:inherit}
 .quick-step b,.quick-step small{display:block}.quick-step b{font-size:.82rem}.quick-step small{color:#7893a7;font-size:.7rem;margin-top:2px}
 .quick-step.active>span{background:linear-gradient(135deg,#087eff,#23dcff);color:#fff;border:0}
 .quick-arrow{color:#3a627e}
+
+.first-login-card{
+  position:relative;z-index:2;margin-top:14px;padding:14px 16px;border-radius:16px;
+  border:1px solid rgba(68,220,255,.16);background:rgba(2,13,25,.56)
+}
+.first-login-title{font-size:.76rem;text-transform:uppercase;letter-spacing:.09em;color:var(--cyan);font-weight:900;margin-bottom:10px}
+.first-login-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.first-login-grid>div{padding:11px 12px;border-radius:12px;background:rgba(9,31,51,.72);border:1px solid rgba(255,255,255,.05)}
+.first-login-grid small,.first-login-grid b,.first-login-grid code{display:block}
+.first-login-grid small{color:#718da1;font-size:.68rem}.first-login-grid b{margin:4px 0;color:#eafaff;font-size:.85rem}
+.first-login-grid code{color:#7ee9ff;font-size:.78rem;white-space:normal;word-break:break-word}
+.first-login-card p{margin:9px 0 0;font-size:.73rem;color:#7f9aab}
+
 .launch-status{position:relative;z-index:2;display:flex;gap:18px;flex-wrap:wrap;margin-top:14px;color:#7290a4;font-size:.72rem}
 .launch-status span:first-child{color:#8de6bd}
 
@@ -326,6 +339,7 @@ footer{border-top:1px solid rgba(255,255,255,.07);padding:32px 0 42px;color:#789
 @media(max-width:520px){
   .hero h1{font-size:3.65rem}.hero p{font-size:.98rem}.actions .btn{width:100%}
   .launch-panel h2{font-size:2.45rem}.launch-panel p{font-size:.92rem}
+  .first-login-grid{grid-template-columns:1fr}
   .launch-status{display:grid;gap:7px}
   body{padding-bottom:66px}
   .mobile-install-bar{

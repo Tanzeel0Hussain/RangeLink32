@@ -210,6 +210,10 @@ String getAdminPassword() {
 
 bool setApCredentials(const String& ssid, const String& password) {
   if (ssid.length() == 0 || password.length() < 8) return false;
+
+  // Keep the Wi-Fi access password separate from the admin login password.
+  if (password == getAdminPassword()) return false;
+
   const String protectedPassword =
     protectSecret(password);
 
@@ -228,6 +232,10 @@ bool setApCredentials(const String& ssid, const String& password) {
 
 bool setAdminCredentials(const String& username, const String& password) {
   if (username.length() == 0 || password.length() < 8) return false;
+
+  // Do not allow the management password to match the Wi-Fi password.
+  if (password == getApPassword()) return false;
+
   const String protectedPassword =
     protectSecret(password);
 

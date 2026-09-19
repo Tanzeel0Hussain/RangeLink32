@@ -778,7 +778,7 @@ void webAdminBegin() {
     );
 
     if (!ok) {
-      server.send(400, "text/plain", "Invalid hotspot settings.");
+      server.send(400, "text/plain", "Invalid hotspot settings. Use 8+ characters and choose a password different from the admin password.");
       return;
     }
 
@@ -857,7 +857,7 @@ void webAdminBegin() {
     );
 
     if (!ok) {
-      server.send(400, "text/plain", "Invalid admin settings.");
+      server.send(400, "text/plain", "Invalid admin settings. Use 8+ characters and choose a password different from the RangeLink32 Wi-Fi password.");
       return;
     }
 
