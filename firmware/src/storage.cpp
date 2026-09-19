@@ -4,6 +4,20 @@
 
 namespace {
 Preferences prefs;
+constexpr uint8_t MAX_EVENT_LOGS = 20;
+uint32_t bootSequence = 0;
+
+String jsonEscape(String value) {
+  value.replace("\\", "\\\\");
+  value.replace("\"", "\\\"");
+  value.replace("\n", " ");
+  value.replace("\r", " ");
+  return value;
+}
+
+String logKey(size_t index) {
+  return "l" + String(index);
+}
 
 String wifiKey(size_t index, const char* suffix) {
   return "w" + String(index) + suffix;
@@ -38,6 +52,9 @@ void writeClientSlot(size_t index, const ClientRecord& record) {
 
 void storageBegin() {
   prefs.begin("rangelink32", false);
+
+  bootSequence = prefs.getUInt("boot_seq", 0) + 1;
+  prefs.putUInt("boot_seq", bootSequence);
 
   if (!prefs.isKey("ap_ssid")) {
     prefs.putString("ap_ssid", RangeLinkConfig::DEFAULT_AP_SSID);
@@ -216,6 +233,79 @@ bool saveClientPolicy(const ClientRecord& record) {
   writeClientSlot(count, record);
   prefs.putUChar("client_n", static_cast<uint8_t>(count + 1));
   return true;
+}
+
+void appendEventLog(const String& type, const String& message) {
+  uint8_t head = prefs.getUChar("log_head", 0);
+  uint8_t count = prefs.getUChar("log_count", 0);
+
+  String safeType = type;
+  String safeMessage = message;
+  safeType.replace("|", "/");
+  safeMessage.replace("|", "/");
+  safeMessage.replace("\n", " ");
+  safeMessage.replace("\r", " ");
+
+  String entry =
+    String(bootSequence) + "|" +
+    String(millis() / 1000UL) + "|" +
+    safeType + "|" +
+    safeMessage;
+
+  prefs.putString(logKey(head).c_str(), entry);
+
+  head = static_cast<uint8_t>((head + 1) % MAX_EVENT_LOGS);
+  if (count < MAX_EVENT_LOGS) ++count;
+
+  prefs.putUChar("log_head", head);
+  prefs.putUChar("log_count", count);
+}
+
+String getEventLogJson() {
+  const uint8_t head = prefs.getUChar("log_head", 0);
+  const uint8_t count = prefs.getUChar("log_count", 0);
+
+  String json = "[";
+  const uint8_t oldest =
+    static_cast<uint8_t>((head + MAX_EVENT_LOGS - count) % MAX_EVENT_LOGS);
+
+  for (uint8_t n = 0; n < count; ++n) {
+    const uint8_t index =
+      static_cast<uint8_t>((oldest + n) % MAX_EVENT_LOGS);
+
+    String entry = prefs.getString(logKey(index).c_str(), "");
+    if (entry.length() == 0) continue;
+
+    const int p1 = entry.indexOf('|');
+    const int p2 = entry.indexOf('|', p1 + 1);
+    const int p3 = entry.indexOf('|', p2 + 1);
+
+    if (p1 < 0 || p2 < 0 || p3 < 0) continue;
+
+    if (json.length() > 1) json += ",";
+
+    const String boot = entry.substring(0, p1);
+    const String seconds = entry.substring(p1 + 1, p2);
+    const String type = entry.substring(p2 + 1, p3);
+    const String message = entry.substring(p3 + 1);
+
+    json += "{\"boot\":" + boot +
+            ",\"seconds\":" + seconds +
+            ",\"type\":\"" + jsonEscape(type) +
+            "\",\"message\":\"" + jsonEscape(message) +
+            "\"}";
+  }
+
+  json += "]";
+  return json;
+}
+
+void clearEventLogs() {
+  for (uint8_t i = 0; i < MAX_EVENT_LOGS; ++i) {
+    prefs.remove(logKey(i).c_str());
+  }
+  prefs.putUChar("log_head", 0);
+  prefs.putUChar("log_count", 0);
 }
 
 void factoryResetStorage() {

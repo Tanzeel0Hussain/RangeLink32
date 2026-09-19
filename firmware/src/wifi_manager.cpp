@@ -6,6 +6,7 @@
 namespace {
 constexpr size_t MAX_SCAN_RESULTS = 32;
 constexpr uint8_t FAILOVER_AFTER_ATTEMPTS = 4;
+constexpr unsigned long HEALTH_CHECK_INTERVAL_MS = 30000;
 
 SystemState state;
 
@@ -22,6 +23,9 @@ unsigned long lastReconnectAttempt = 0;
 unsigned long reconnectDelayMs = RangeLinkConfig::RECONNECT_MIN_MS;
 unsigned long lastScanMs = 0;
 uint8_t reconnectAttempts = 0;
+unsigned long lastHealthCheckMs = 0;
+bool lastUpstreamState = false;
+bool upstreamStateInitialized = false;
 
 String scanJson = "[]";
 
@@ -31,6 +35,54 @@ void refreshState() {
   state.upstreamRssi = state.upstreamConnected ? WiFi.RSSI() : -127;
   state.apSsid = getApSsid();
   state.connectedClients = WiFi.softAPgetStationNum();
+
+  if (!state.upstreamConnected) {
+    state.internetReachable = false;
+  }
+
+  if (!upstreamStateInitialized) {
+    lastUpstreamState = state.upstreamConnected;
+    upstreamStateInitialized = true;
+  } else if (lastUpstreamState != state.upstreamConnected) {
+    if (state.upstreamConnected) {
+      appendEventLog(
+        "upstream",
+        "Connected to " + state.upstreamSsid +
+        " at " + String(state.upstreamRssi) + " dBm"
+      );
+    } else {
+      appendEventLog("upstream", "Upstream Wi-Fi disconnected");
+    }
+    lastUpstreamState = state.upstreamConnected;
+  }
+}
+
+void checkInternetHealth() {
+  if (!state.upstreamConnected) {
+    state.internetReachable = false;
+    return;
+  }
+
+  if (millis() - lastHealthCheckMs < HEALTH_CHECK_INTERVAL_MS) {
+    return;
+  }
+
+  lastHealthCheckMs = millis();
+  const bool previous = state.internetReachable;
+
+  WiFiClient probe;
+  IPAddress endpoint(1, 1, 1, 1);
+  const bool online = probe.connect(endpoint, 443, 1000);
+  if (online) probe.stop();
+
+  state.internetReachable = online;
+
+  if (online != previous) {
+    appendEventLog(
+      "internet",
+      online ? "Internet health check passed" : "Internet health check failed"
+    );
+  }
 }
 
 String jsonEscape(String value) {
@@ -99,6 +151,7 @@ void startTarget(const String& ssid, const String& password) {
 
   Serial.print("RangeLink32 upstream target: ");
   Serial.println(targetSsid);
+  appendEventLog("upstream", "Connecting to " + targetSsid);
 }
 
 bool selectBestSavedProfile(bool preferDifferent) {
@@ -136,6 +189,13 @@ bool selectBestSavedProfile(bool preferDifferent) {
   }
 
   if (bestIndex < 0) return false;
+
+  if (preferDifferent) {
+    appendEventLog(
+      "failover",
+      "Switching to saved network " + profiles[bestIndex].ssid
+    );
+  }
 
   startTarget(profiles[bestIndex].ssid, profiles[bestIndex].secret);
   return true;
@@ -204,11 +264,13 @@ void wifiManagerBegin() {
   performScan();
   selectBestSavedProfile(false);
   refreshState();
+  appendEventLog("system", "RangeLink32 Wi-Fi manager started");
 }
 
 void wifiManagerLoop() {
   maintainUpstream();
   refreshState();
+  checkInternetHealth();
 }
 
 void requestWifiScan() {
@@ -280,6 +342,7 @@ bool connectSavedProfile(const String& ssid) {
 
 bool forgetSavedProfile(const String& ssid) {
   if (!removeWifiProfile(ssid)) return false;
+  appendEventLog("profile", "Forgot saved network " + ssid);
 
   if (targetSsid == ssid) {
     targetSsid = "";

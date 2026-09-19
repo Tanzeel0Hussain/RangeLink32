@@ -1,4 +1,5 @@
 #include <WebServer.h>
+#include <Update.h>
 #include "web_admin.h"
 #include "wifi_manager.h"
 #include "router_engine.h"
@@ -49,7 +50,7 @@ String renderPage() {
 :root{--bg:#07111d;--panel:#0d1d2d;--line:#20354a;--text:#eef7ff;--muted:#8ea7bd;--accent:#49d3ff;--ok:#42d392;--warn:#f6c453;--danger:#fb7185}
 *{box-sizing:border-box}body{margin:0;background:linear-gradient(155deg,#06101b,#0b1d2e);font-family:system-ui,sans-serif;color:var(--text)}
 .wrap{max-width:1100px;margin:auto;padding:20px}.brand h1{margin:0;font-size:1.45rem}.brand p{margin:5px 0 0;color:var(--muted)}
-.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-top:18px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:18px}
 .card{background:rgba(13,29,45,.96);border:1px solid var(--line);border-radius:16px;padding:16px}
 .k{font-size:.72rem;text-transform:uppercase;color:var(--muted);letter-spacing:.08em}.v{font-size:1.25rem;font-weight:800;margin-top:7px}
 section{margin-top:14px}.btn{display:inline-block;border:0;border-radius:10px;padding:10px 13px;background:var(--accent);color:#041019;font-weight:800;cursor:pointer;text-decoration:none}
@@ -71,6 +72,8 @@ small{color:var(--muted);line-height:1.5}@media(max-width:850px){.grid{grid-temp
           String(s.upstreamRssi) + " dBm</div></div>";
   html += "<div class='card'><div class='k'>Clients</div><div class='v'>" +
           String(s.connectedClients) + "</div></div>";
+  html += "<div class='card'><div class='k'>Internet</div><div class='v'>" +
+          String(s.internetReachable ? "Online" : "Offline") + "</div></div>";
   html += "<div class='card'><div class='k'>Internet Forwarding</div><div class='v'>" +
           String(routerEngineReady() ? "NAPT On" : "Off") + "</div></div></div>";
 
@@ -140,6 +143,22 @@ small{color:var(--muted);line-height:1.5}@media(max-width:850px){.grid{grid-temp
 </section>
 
 <section class="card">
+<h3>Event Log</h3>
+<div class="actions"><button class="btn secondary" onclick="loadLogs()">Refresh logs</button>
+<form method="post" action="/logs/clear"><button class="btn danger">Clear logs</button></form></div>
+<div id="logs"><small>Loading events…</small></div>
+</section>
+
+<section class="card">
+<h3>OTA Firmware Update</h3>
+<form method="post" action="/update" enctype="multipart/form-data">
+<input type="file" name="firmware" accept=".bin,application/octet-stream" required>
+<button class="btn" type="submit">Upload Firmware & Restart</button>
+</form>
+<p><small>Upload only a RangeLink32 firmware <code>.bin</code> built for your ESP32 board. Keep the device powered during the update.</small></p>
+</section>
+
+<section class="card">
 <h3>System & Recovery</h3>
 <div class="row"><div><b>Management IP</b><div class="meta">192.168.50.1</div></div></div>
 <div class="row"><div><b>Chip</b><div class="meta">)HTML" + String(ESP.getChipModel()) + R"HTML( · Free heap )HTML" + String(ESP.getFreeHeap()/1024) + R"HTML( KB</div></div></div>
@@ -197,6 +216,15 @@ async function loadClients(){
     </div>`).join(''):'<small>No devices have connected yet.</small>';
 }
 
+async function loadLogs(){
+  const data=await (await fetch('/api/logs')).json();
+  const box=document.getElementById('logs');
+  box.innerHTML=data.length?data.slice().reverse().map(e=>`
+    <div class="row">
+      <div><b>${esc(e.type)}</b><div class="meta">Boot ${e.boot} · +${e.seconds}s</div><div class="meta">${esc(e.message)}</div></div>
+    </div>`).join(''):'<small>No events recorded yet.</small>';
+}
+
 async function loadProfiles(){
   const data=await (await fetch('/api/profiles')).json();
   const box=document.getElementById('profiles');
@@ -223,6 +251,7 @@ async function scanNow(){
 loadNetworks();
 loadProfiles();
 loadClients();
+loadLogs();
 setInterval(loadClients,5000);
 </script>
 </main></body></html>)HTML";
@@ -250,6 +279,11 @@ void webAdminBegin() {
   server.on("/api/clients", HTTP_GET, []() {
     if (!requireAdmin()) return;
     server.send(200, "application/json", getClientTableJson());
+  });
+
+  server.on("/api/logs", HTTP_GET, []() {
+    if (!requireAdmin()) return;
+    server.send(200, "application/json", getEventLogJson());
   });
 
   server.on("/scan", HTTP_POST, []() {
@@ -321,6 +355,14 @@ void webAdminBegin() {
     server.send(303);
   });
 
+  server.on("/logs/clear", HTTP_POST, []() {
+    if (!requireAdmin()) return;
+    clearEventLogs();
+    appendEventLog("system", "Event log cleared");
+    server.sendHeader("Location", "/");
+    server.send(303);
+  });
+
   server.on("/settings/ap", HTTP_POST, []() {
     if (!requireAdmin()) return;
 
@@ -334,6 +376,7 @@ void webAdminBegin() {
       return;
     }
 
+    appendEventLog("settings", "RangeLink32 hotspot settings changed");
     server.send(
       200,
       "text/html",
@@ -355,6 +398,7 @@ void webAdminBegin() {
       return;
     }
 
+    appendEventLog("settings", "Admin login credentials changed");
     server.send(
       200,
       "text/html",
@@ -363,8 +407,58 @@ void webAdminBegin() {
     scheduleRestart();
   });
 
+  server.on(
+    "/update",
+    HTTP_POST,
+    []() {
+      if (!requireAdmin()) return;
+
+      const bool ok = !Update.hasError();
+      if (ok) {
+        appendEventLog("ota", "Firmware update completed");
+      } else {
+        appendEventLog("ota", "Firmware update failed");
+      }
+
+      server.send(
+        ok ? 200 : 500,
+        "text/html",
+        ok
+          ? "<h2>Firmware update complete.</h2><p>RangeLink32 is restarting…</p>"
+          : "<h2>Firmware update failed.</h2><p>The current firmware remains active.</p>"
+      );
+
+      if (ok) scheduleRestart();
+    },
+    []() {
+      if (!server.authenticate(
+            getAdminUser().c_str(),
+            getAdminPassword().c_str()
+          )) {
+        return;
+      }
+
+      HTTPUpload& upload = server.upload();
+
+      if (upload.status == UPLOAD_FILE_START) {
+        Update.begin(UPDATE_SIZE_UNKNOWN);
+      } else if (upload.status == UPLOAD_FILE_WRITE) {
+        if (!Update.hasError()) {
+          Update.write(upload.buf, upload.currentSize);
+        }
+      } else if (upload.status == UPLOAD_FILE_END) {
+        if (!Update.hasError()) {
+          Update.end(true);
+        }
+      } else if (upload.status == UPLOAD_FILE_ABORTED) {
+        Update.abort();
+      }
+    }
+  );
+
   server.on("/system/restart", HTTP_POST, []() {
     if (!requireAdmin()) return;
+    appendEventLog("system", "Manual restart requested");
     server.send(200, "text/html", "<h2>RangeLink32 is restarting…</h2>");
     scheduleRestart();
   });

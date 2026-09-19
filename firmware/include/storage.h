@@ -21,4 +21,8 @@ void setStoredAccessMode(uint8_t mode);
 size_t loadClientPolicies(ClientRecord* out, size_t maxCount);
 bool saveClientPolicy(const ClientRecord& record);
 
+void appendEventLog(const String& type, const String& message);
+String getEventLogJson();
+void clearEventLogs();
+
 void factoryResetStorage();

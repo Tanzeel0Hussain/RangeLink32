@@ -178,6 +178,12 @@ AccessMode getAccessMode() {
 void setAccessMode(AccessMode newMode) {
   mode = newMode;
   setStoredAccessMode(static_cast<uint8_t>(newMode));
+  appendEventLog(
+    "access",
+    newMode == AccessMode::AllowlistOnly
+      ? "Access mode changed to allowlist-only"
+      : "Access mode changed to allow-all"
+  );
   refreshClients(true);
 }
 
@@ -190,6 +196,10 @@ bool setClientApproval(const String& mac, bool approved) {
 
   if (!saveClientPolicy(record)) return false;
 
+  appendEventLog(
+    "client",
+    String(approved ? "Approved " : "Removed approval for ") + mac
+  );
   reloadPolicies();
   refreshClients(true);
   return true;
@@ -204,6 +214,10 @@ bool setClientBlocked(const String& mac, bool blocked) {
 
   if (!saveClientPolicy(record)) return false;
 
+  appendEventLog(
+    "client",
+    String(blocked ? "Blocked " : "Unblocked ") + mac
+  );
   reloadPolicies();
   refreshClients(true);
   return true;
