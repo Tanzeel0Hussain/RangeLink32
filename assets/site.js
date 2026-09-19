@@ -28,6 +28,7 @@ document.querySelector('[data-year]').textContent=new Date().getFullYear();
 
 
 const galleryStage=document.querySelector('.gallery-stage');
+const galleryRail=document.querySelector('.gallery-rail');
 const gallerySlides=[...document.querySelectorAll('.gallery-slide')];
 const galleryThumbs=[...document.querySelectorAll('.gallery-thumb')];
 const galleryCurrent=document.querySelector('#gallery-current');
@@ -65,8 +66,15 @@ if(galleryStage && gallerySlides.length){
     galleryCurrent.textContent=String(galleryIndex+1).padStart(2,'0');
 
     const activeThumb=galleryThumbs[galleryIndex];
-    if(activeThumb && innerWidth<=760){
-      activeThumb.scrollIntoView({behavior:'smooth',inline:'center',block:'nearest'});
+    if(activeThumb && galleryRail && innerWidth<=760){
+      const targetLeft=
+        activeThumb.offsetLeft -
+        (galleryRail.clientWidth-activeThumb.clientWidth)/2;
+
+      galleryRail.scrollTo({
+        left:Math.max(0,targetLeft),
+        behavior:manual?'smooth':'auto'
+      });
     }
 
     restartProgress();
