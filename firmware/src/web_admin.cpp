@@ -59,7 +59,13 @@ String placementLabel(int32_t rssi) {
   return "Very weak — move closer";
 }
 
-void scheduleRestart() {
+void scheduleRestart(
+  bool flushRuntimeStats = true
+) {
+  if (flushRuntimeStats) {
+    accessControlFlush();
+  }
+
   restartPending = true;
   restartRequestedAt = millis();
 }
@@ -962,7 +968,7 @@ void webAdminBegin() {
       "<h2>Backup restored.</h2><p>RangeLink32 is restarting…</p>"
     );
 
-    scheduleRestart();
+    scheduleRestart(false);
   });
 
   server.on("/logs/clear", HTTP_POST, []() {
@@ -1141,7 +1147,7 @@ void webAdminBegin() {
       "text/html",
       "<h2>Factory reset complete.</h2><p>RangeLink32 is restarting with default development settings.</p>"
     );
-    scheduleRestart();
+    scheduleRestart(false);
   });
 
   server.on("/reconnect", HTTP_POST, []() {

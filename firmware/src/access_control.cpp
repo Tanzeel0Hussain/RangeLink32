@@ -15,7 +15,7 @@ extern "C" {
 
 namespace {
 constexpr unsigned long CLIENT_REFRESH_MS = 2000;
-constexpr unsigned long STATS_FLUSH_MS = 300000;
+constexpr unsigned long STATS_FLUSH_MS = 120000;
 
 AccessMode mode = AccessMode::AllowAll;
 
@@ -582,6 +582,10 @@ void accessControlLoop() {
   ) {
     persistRuntimeStats();
   }
+}
+
+void accessControlFlush() {
+  persistRuntimeStats();
 }
 
 AccessMode getAccessMode() {
