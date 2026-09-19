@@ -16,6 +16,12 @@ size_t loadWifiProfiles(WifiProfile* out, size_t maxCount);
 bool saveWifiProfile(const WifiProfile& profile);
 bool removeWifiProfile(const String& ssid);
 bool getWifiProfileSecret(const String& ssid, String& secret);
+bool updateWifiProfileUsage(
+  const String& ssid,
+  int32_t rssi,
+  uint64_t rxDelta,
+  uint64_t txDelta
+);
 
 uint8_t getStoredAccessMode();
 void setStoredAccessMode(uint8_t mode);

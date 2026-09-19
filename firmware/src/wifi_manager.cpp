@@ -1,12 +1,14 @@
 #include <WiFi.h>
 #include "wifi_manager.h"
 #include "storage.h"
+#include "traffic_monitor.h"
 #include "config.h"
 
 namespace {
 constexpr size_t MAX_SCAN_RESULTS = 32;
 constexpr uint8_t FAILOVER_AFTER_ATTEMPTS = 4;
 constexpr unsigned long HEALTH_CHECK_INTERVAL_MS = 30000;
+constexpr unsigned long NETWORK_USAGE_FLUSH_MS = 60000;
 
 SystemState state;
 
@@ -26,6 +28,10 @@ uint8_t reconnectAttempts = 0;
 unsigned long lastHealthCheckMs = 0;
 bool lastUpstreamState = false;
 bool upstreamStateInitialized = false;
+unsigned long lastNetworkUsageFlushMs = 0;
+uint64_t lastGatewayRxBytes = 0;
+uint64_t lastGatewayTxBytes = 0;
+String usageSsid;
 
 String scanJson = "[]";
 
@@ -55,6 +61,61 @@ void refreshState() {
     }
     lastUpstreamState = state.upstreamConnected;
   }
+}
+
+void accountNetworkUsage() {
+  uint64_t gatewayRx = 0;
+  uint64_t gatewayTx = 0;
+
+  trafficMonitorGetTotals(
+    gatewayRx,
+    gatewayTx
+  );
+
+  if (!state.upstreamConnected) {
+    lastGatewayRxBytes = gatewayRx;
+    lastGatewayTxBytes = gatewayTx;
+    usageSsid = "";
+    return;
+  }
+
+  if (usageSsid != state.upstreamSsid) {
+    usageSsid = state.upstreamSsid;
+    lastGatewayRxBytes = gatewayRx;
+    lastGatewayTxBytes = gatewayTx;
+    lastNetworkUsageFlushMs = millis();
+    return;
+  }
+
+  if (
+    millis() - lastNetworkUsageFlushMs <
+      NETWORK_USAGE_FLUSH_MS
+  ) {
+    return;
+  }
+
+  const uint64_t rxDelta =
+    gatewayRx >= lastGatewayRxBytes
+      ? gatewayRx - lastGatewayRxBytes
+      : 0;
+
+  const uint64_t txDelta =
+    gatewayTx >= lastGatewayTxBytes
+      ? gatewayTx - lastGatewayTxBytes
+      : 0;
+
+  if (rxDelta || txDelta) {
+    updateWifiProfileUsage(
+      state.upstreamSsid,
+      state.upstreamRssi,
+      rxDelta,
+      txDelta
+    );
+  }
+
+  lastGatewayRxBytes = gatewayRx;
+  lastGatewayTxBytes = gatewayTx;
+  lastNetworkUsageFlushMs = millis();
 }
 
 void checkInternetHealth() {
@@ -278,6 +339,7 @@ void wifiManagerLoop() {
   maintainUpstream();
   refreshState();
   checkInternetHealth();
+  accountNetworkUsage();
 }
 
 void requestWifiScan() {
@@ -303,10 +365,60 @@ String getSavedProfilesJson() {
             ",\"current\":" +
             String(WiFi.status() == WL_CONNECTED &&
                    WiFi.SSID() == profiles[i].ssid ? "true" : "false") +
+            ",\"lastRssi\":" + String(profiles[i].lastRssi) +
+            ",\"rxBytes\":" +
+            String(static_cast<unsigned long long>(profiles[i].rxBytes)) +
+            ",\"txBytes\":" +
+            String(static_cast<unsigned long long>(profiles[i].txBytes)) +
             "}";
   }
   json += "]";
   return json;
+}
+
+String getChannelAnalysisJson() {
+  int score[14] = {};
+  int networks[14] = {};
+
+  for (size_t i = 0; i < scanCount; ++i) {
+    const uint8_t channel = scanChannels[i];
+
+    if (channel < 1 || channel > 13) {
+      continue;
+    }
+
+    const int strength =
+      scanRssi[i] >= -55 ? 4 :
+      scanRssi[i] >= -67 ? 3 :
+      scanRssi[i] >= -75 ? 2 : 1;
+
+    for (int ch = 1; ch <= 13; ++ch) {
+      const int distance =
+        abs(ch - static_cast<int>(channel));
+
+      if (distance <= 2) {
+        score[ch] +=
+          strength * (3 - distance);
+      }
+    }
+
+    networks[channel]++;
+  }
+
+  String json = "[";
+  for (int ch = 1; ch <= 13; ++ch) {
+    if (ch > 1) json += ",";
+
+    json +=
+      "{\"channel\":" + String(ch) +
+      ",\"networks\":" +
+      String(networks[ch]) +
+      ",\"congestion\":" +
+      String(score[ch]) +
+      "}";
+  }
+
+  return json + "]";
 }
 
 SystemState getSystemState() {

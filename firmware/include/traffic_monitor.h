@@ -20,3 +20,7 @@ bool trafficMonitorGetStats(
 );
 
 bool trafficMonitorResetUsage(const String& mac, bool resetTotal);
+void trafficMonitorGetTotals(
+  uint64_t& rxBytes,
+  uint64_t& txBytes
+);

@@ -42,6 +42,8 @@ void writeWifiSlot(size_t index, const WifiProfile& profile) {
   prefs.putInt(wifiKey(index, "q").c_str(), profile.priority);
   prefs.putInt(wifiKey(index, "r").c_str(), profile.lastRssi);
   prefs.putBool(wifiKey(index, "e").c_str(), profile.enabled);
+  prefs.putULong64(wifiKey(index, "rx").c_str(), profile.rxBytes);
+  prefs.putULong64(wifiKey(index, "tx").c_str(), profile.txBytes);
 }
 
 void clearWifiSlot(size_t index) {
@@ -50,6 +52,8 @@ void clearWifiSlot(size_t index) {
   prefs.remove(wifiKey(index, "q").c_str());
   prefs.remove(wifiKey(index, "r").c_str());
   prefs.remove(wifiKey(index, "e").c_str());
+  prefs.remove(wifiKey(index, "rx").c_str());
+  prefs.remove(wifiKey(index, "tx").c_str());
 }
 
 void writeClientSlot(size_t index, const ClientRecord& record) {
@@ -264,6 +268,10 @@ size_t loadWifiProfiles(WifiProfile* out, size_t maxCount) {
       prefs.getInt(wifiKey(i, "r").c_str(), -127);
     profile.enabled =
       prefs.getBool(wifiKey(i, "e").c_str(), true);
+    profile.rxBytes =
+      prefs.getULong64(wifiKey(i, "rx").c_str(), 0);
+    profile.txBytes =
+      prefs.getULong64(wifiKey(i, "tx").c_str(), 0);
 
     if (profile.ssid.length() == 0) continue;
     out[written++] = profile;
@@ -320,6 +328,58 @@ bool getWifiProfileSecret(
   for (size_t i = 0; i < count; ++i) {
     if (profiles[i].ssid == ssid) {
       secret = profiles[i].secret;
+      return true;
+    }
+  }
+
+  return false;
+}
+
+bool updateWifiProfileUsage(
+  const String& ssid,
+  int32_t rssi,
+  uint64_t rxDelta,
+  uint64_t txDelta
+) {
+  const size_t count =
+    prefs.getUChar("wifi_n", 0);
+
+  for (
+    size_t i = 0;
+    i < count &&
+    i < RangeLinkConfig::MAX_WIFI_PROFILES;
+    ++i
+  ) {
+    if (
+      prefs.getString(
+        wifiKey(i, "s").c_str(),
+        ""
+      ) == ssid
+    ) {
+      const uint64_t rx =
+        prefs.getULong64(
+          wifiKey(i, "rx").c_str(),
+          0
+        );
+      const uint64_t tx =
+        prefs.getULong64(
+          wifiKey(i, "tx").c_str(),
+          0
+        );
+
+      prefs.putULong64(
+        wifiKey(i, "rx").c_str(),
+        rx + rxDelta
+      );
+      prefs.putULong64(
+        wifiKey(i, "tx").c_str(),
+        tx + txDelta
+      );
+      prefs.putInt(
+        wifiKey(i, "r").c_str(),
+        rssi
+      );
+
       return true;
     }
   }

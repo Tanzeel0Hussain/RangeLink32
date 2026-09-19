@@ -8,6 +8,7 @@ void wifiManagerLoop();
 void requestWifiScan();
 String getWifiScanJson();
 String getSavedProfilesJson();
+String getChannelAnalysisJson();
 SystemState getSystemState();
 
 bool connectUpstream(const String& ssid, const String& password);

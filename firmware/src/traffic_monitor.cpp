@@ -34,6 +34,8 @@ struct TrafficSlot {
 
 TrafficSlot slots[RangeLinkConfig::MAX_CLIENT_RECORDS];
 bool defaultAllow = true;
+uint64_t gatewayRxBytes = 0;
+uint64_t gatewayTxBytes = 0;
 
 struct netif* apNetif = nullptr;
 netif_input_fn originalApInput = nullptr;
@@ -176,9 +178,11 @@ bool consumeBudget(TrafficSlot& slot, uint16_t bytes, bool downlink) {
   if (downlink) {
     slot.rxBytes += bytes;
     slot.dailyRxBytes += bytes;
+    gatewayRxBytes += bytes;
   } else {
     slot.txBytes += bytes;
     slot.dailyTxBytes += bytes;
+    gatewayTxBytes += bytes;
   }
 
   return true;
@@ -387,4 +391,14 @@ bool trafficMonitorResetUsage(
   portEXIT_CRITICAL(&trafficMux);
 
   return found;
+}
+
+void trafficMonitorGetTotals(
+  uint64_t& rxBytes,
+  uint64_t& txBytes
+) {
+  portENTER_CRITICAL(&trafficMux);
+  rxBytes = gatewayRxBytes;
+  txBytes = gatewayTxBytes;
+  portEXIT_CRITICAL(&trafficMux);
 }
