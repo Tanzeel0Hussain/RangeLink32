@@ -264,7 +264,7 @@ The project separates three different credential types:
 
 The hotspot password and admin password can be changed independently from the local dashboard and are not allowed to be set to the same value.
 
-Saved upstream Wi-Fi credentials, the RangeLink32 hotspot password and the admin password are stored in protected application form using AES-GCM with a device-derived key. Saved upstream secrets are not included in the normal profile API or safe settings backup, and revealing a saved upstream password requires administrator re-authentication.
+Saved upstream Wi-Fi credentials, the RangeLink32 hotspot password and the admin password are stored in AES-GCM protected application form using a random per-device master secret that is generated on first boot and mixed with the chip identity. Saved upstream secrets are not included in the normal profile API or safe settings backup, and revealing a saved upstream password requires administrator re-authentication.
 
 For stronger resistance to physical flash extraction, ESP32 Secure Boot and hardware flash encryption are separate hardening layers that can be added depending on deployment requirements.
 

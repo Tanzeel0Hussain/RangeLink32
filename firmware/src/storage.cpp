@@ -103,14 +103,24 @@ void storageBegin() {
     const String existing =
       prefs.getString("ap_pass", "");
 
-    if (
-      existing.length() > 0 &&
-      !isProtectedSecret(existing)
-    ) {
-      prefs.putString(
-        "ap_pass",
-        protectSecret(existing)
-      );
+    if (existing.length() > 0) {
+      const bool legacyEncrypted =
+        existing.startsWith("enc1:");
+
+      if (
+        !isProtectedSecret(existing) ||
+        legacyEncrypted
+      ) {
+        const String plain =
+          unprotectSecret(existing);
+
+        if (plain.length() > 0) {
+          prefs.putString(
+            "ap_pass",
+            protectSecret(plain)
+          );
+        }
+      }
     }
   }
   if (!prefs.isKey("admin_user")) {
@@ -127,14 +137,24 @@ void storageBegin() {
     const String existing =
       prefs.getString("admin_pass", "");
 
-    if (
-      existing.length() > 0 &&
-      !isProtectedSecret(existing)
-    ) {
-      prefs.putString(
-        "admin_pass",
-        protectSecret(existing)
-      );
+    if (existing.length() > 0) {
+      const bool legacyEncrypted =
+        existing.startsWith("enc1:");
+
+      if (
+        !isProtectedSecret(existing) ||
+        legacyEncrypted
+      ) {
+        const String plain =
+          unprotectSecret(existing);
+
+        if (plain.length() > 0) {
+          prefs.putString(
+            "admin_pass",
+            protectSecret(plain)
+          );
+        }
+      }
     }
   }
   if (!prefs.isKey("tz_min")) {
@@ -160,14 +180,24 @@ void storageBegin() {
     const String existing =
       prefs.getString(key.c_str(), "");
 
-    if (
-      existing.length() > 0 &&
-      !isProtectedSecret(existing)
-    ) {
-      prefs.putString(
-        key.c_str(),
-        protectSecret(existing)
-      );
+    if (existing.length() > 0) {
+      const bool legacyEncrypted =
+        existing.startsWith("enc1:");
+
+      if (
+        !isProtectedSecret(existing) ||
+        legacyEncrypted
+      ) {
+        const String plain =
+          unprotectSecret(existing);
+
+        if (plain.length() > 0) {
+          prefs.putString(
+            key.c_str(),
+            protectSecret(plain)
+          );
+        }
+      }
     }
   }
 }

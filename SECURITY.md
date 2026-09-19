@@ -4,11 +4,11 @@ RangeLink32 is intended for ESP32 hardware and Wi-Fi networks you own or are aut
 
 ## Credential storage
 
-The maintained firmware stores the hotspot password, administrator password and saved upstream Wi-Fi passwords in AES-GCM protected application form using a device-derived key. Existing plaintext values from early development builds are migrated when possible.
+The maintained firmware stores the hotspot password, administrator password and saved upstream Wi-Fi passwords in AES-GCM protected application form. On first boot it generates a random 256-bit per-device master secret in a separate NVS namespace, mixes that secret with the chip identity to derive the credential-encryption key, and uses a fresh random AES-GCM nonce for every stored value. Legacy plaintext and earlier `enc1:` values are migrated to the newer `enc2:` format when possible.
 
 Saved Wi-Fi passwords are excluded from the normal profile API and safe configuration backup. Password reveal requires administrator authentication plus re-entry of the administrator password.
 
-This is application-level at-rest protection. It does not replace ESP32 Secure Boot or hardware flash encryption when physical-device extraction resistance is required.
+This is application-level at-rest protection. The random master secret prevents the encryption key from being recreated from the public MAC/chip ID alone, but a complete physical flash/NVS extraction may still expose enough material to recover application secrets. ESP32 Secure Boot and hardware flash encryption are still required when resistance to physical-device extraction is needed.
 
 ## Local administration
 
