@@ -263,7 +263,7 @@ The project separates three different credential types:
 2. **RangeLink32 admin password** — used to protect the local management page.
 3. **Saved upstream Wi-Fi passwords** — credentials for authorized router/hotspot networks that RangeLink32 connects to.
 
-The hotspot password and admin password can be changed independently from the local dashboard and are not allowed to be set to the same value.
+The hotspot password and admin password can be changed independently from the local dashboard and are not allowed to be set to the same value. The local admin challenge uses HTTP Digest authentication instead of Basic authentication. This avoids sending a reusable Base64 username/password value on each request, but the local management page is still HTTP rather than TLS, so it should be used only on a trusted RangeLink32 network.
 
 Saved upstream Wi-Fi credentials, the RangeLink32 hotspot password and the admin password are stored in AES-GCM protected application form using a random per-device master secret that is generated on first boot and mixed with the chip identity. Saved upstream secrets are not included in the normal profile API or safe settings backup, and revealing a saved upstream password requires administrator re-authentication.
 

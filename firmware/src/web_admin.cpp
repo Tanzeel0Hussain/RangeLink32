@@ -31,7 +31,10 @@ bool requireAdmin(bool allowDuringInitialSetup = false) {
   const String pass = getAdminPassword();
 
   if (!server.authenticate(user.c_str(), pass.c_str())) {
-    server.requestAuthentication();
+    server.requestAuthentication(
+      DIGEST_AUTH,
+      "RangeLink32 Admin"
+    );
     return false;
   }
 

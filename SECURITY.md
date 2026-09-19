@@ -12,7 +12,7 @@ This is application-level at-rest protection. The random master secret prevents 
 
 ## Local administration
 
-The management interface is intended for the RangeLink32 local network at `192.168.50.1`. Change the default hotspot and administrator credentials before regular use.
+The management interface is intended for the RangeLink32 local network at `192.168.50.1`. It uses HTTP Digest authentication rather than HTTP Basic authentication, so the administrator password is not sent as a reusable Base64 username/password value on each request. The local page is still served over HTTP rather than TLS, so page contents and configuration traffic are not end-to-end encrypted. Keep the management network trusted and change the factory hotspot and administrator credentials during the mandatory first-boot setup.
 
 Firmware uploaded through the OTA page should come from the project's own release/build pipeline and must match the target ESP32 hardware.
 
