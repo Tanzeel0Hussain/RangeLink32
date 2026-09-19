@@ -1,5 +1,7 @@
 #include <WebServer.h>
 #include <Update.h>
+#include <vector>
+#include "qrcode.h"
 #include "web_admin.h"
 #include "wifi_manager.h"
 #include "router_engine.h"
@@ -48,8 +50,9 @@ String renderPage() {
 <title>RangeLink32 Admin</title>
 <style>
 :root{--bg:#07111d;--panel:#0d1d2d;--line:#20354a;--text:#eef7ff;--muted:#8ea7bd;--accent:#49d3ff;--ok:#42d392;--warn:#f6c453;--danger:#fb7185}
+html[data-theme="light"]{--bg:#edf5fb;--panel:#fff;--line:#c9d9e6;--text:#102334;--muted:#5c7183;--accent:#0ca7d4;--ok:#168c61;--warn:#9a6900;--danger:#b72e49}
 *{box-sizing:border-box}body{margin:0;background:linear-gradient(155deg,#06101b,#0b1d2e);font-family:system-ui,sans-serif;color:var(--text)}
-.wrap{max-width:1100px;margin:auto;padding:20px}.brand h1{margin:0;font-size:1.45rem}.brand p{margin:5px 0 0;color:var(--muted)}
+.wrap{max-width:1100px;margin:auto;padding:20px}.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px}.brand h1{margin:0;font-size:1.45rem}.brand p{margin:5px 0 0;color:var(--muted)}
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:18px}
 .card{background:rgba(13,29,45,.96);border:1px solid var(--line);border-radius:16px;padding:16px}
 .k{font-size:.72rem;text-transform:uppercase;color:var(--muted);letter-spacing:.08em}.v{font-size:1.25rem;font-weight:800;margin-top:7px}
@@ -62,7 +65,7 @@ input,select{width:100%;background:#091623;border:1px solid var(--line);color:va
 .client-tools label{display:block;color:var(--muted);font-size:.72rem;margin-top:4px}.client-tools .btn{width:100%;margin-top:5px}
 small{color:var(--muted);line-height:1.5}@media(max-width:850px){.grid{grid-template-columns:1fr 1fr}}@media(max-width:430px){.grid{grid-template-columns:1fr}.row{align-items:flex-start;flex-direction:column}}
 </style></head><body><main class="wrap">
-<div class="brand"><h1>RangeLink32</h1><p>Smart ESP32 Wi-Fi Extender & Managed Gateway</p></div>
+<div class="topbar"><div class="brand"><h1>RangeLink32</h1><p>Smart ESP32 Wi-Fi Extender & Managed Gateway</p></div><button class="btn secondary" type="button" onclick="toggleTheme()">Theme</button></div>
 )HTML";
 
   html += "<div class='grid'>";
@@ -111,6 +114,12 @@ small{color:var(--muted);line-height:1.5}@media(max-width:850px){.grid{grid-temp
 </section>
 
 <section class="card">
+<h3>Channel Analysis</h3>
+<div id="channels"><small>Loading channel congestion…</small></div>
+<p><small>Lower congestion values are generally better. RangeLink32 uses the upstream network's channel because ESP32U has a single 2.4 GHz radio.</small></p>
+</section>
+
+<section class="card">
 <h3>Connect a Network</h3>
 <form method="post" action="/connect">
 <input id="ssid" name="ssid" placeholder="Wi-Fi name (SSID)" required>
@@ -136,6 +145,21 @@ small{color:var(--muted);line-height:1.5}@media(max-width:850px){.grid{grid-temp
 </section>
 
 <section class="card">
+<h3>Wi-Fi QR Code</h3>
+<p><small>Scan this QR code to join the RangeLink32 hotspot. It is generated locally by the ESP32; the Wi-Fi password is not sent to an external QR service.</small></p>
+<img src="/qr.svg" alt="RangeLink32 Wi-Fi QR code" style="max-width:280px;width:100%;background:white;padding:10px;border-radius:12px">
+</section>
+
+<section class="card">
+<h3>DNS Settings</h3>
+<form method="post" action="/settings/dns">
+<label><small>Custom downstream DNS IPv4 address. Leave blank to use 1.1.1.1.</small></label>
+<input name="dns" value=")HTML" + getCustomDns() + R"HTML(" placeholder="e.g. 1.1.1.1">
+<button class="btn" type="submit">Save DNS & Restart</button>
+</form>
+</section>
+
+<section class="card">
 <h3>Time & Scheduling</h3>
 <form method="post" action="/settings/timezone">
 <label><small>Timezone offset from UTC in minutes (Pakistan = 300)</small></label>
@@ -150,6 +174,16 @@ small{color:var(--muted);line-height:1.5}@media(max-width:850px){.grid{grid-temp
 <input name="username" value=")HTML" + getAdminUser() + R"HTML(" placeholder="Admin username" required>
 <input name="password" type="password" placeholder="New admin password (8+ characters)" minlength="8" required>
 <button class="btn" type="submit">Change Admin Login</button>
+</form>
+</section>
+
+<section class="card">
+<h3>Configuration Backup</h3>
+<div class="actions"><a class="btn secondary" href="/backup">Download Safe Backup</a></div>
+<p><small>The backup includes non-secret settings and device policies. Wi-Fi passwords and the admin password are intentionally excluded.</small></p>
+<form method="post" action="/restore">
+<textarea name="backup" rows="8" style="width:100%;background:#091623;border:1px solid var(--line);color:var(--text);border-radius:10px;padding:11px" placeholder="Paste a RangeLink32 backup here"></textarea>
+<button class="btn" type="submit">Restore & Restart</button>
 </form>
 </section>
 
@@ -183,6 +217,14 @@ small{color:var(--muted);line-height:1.5}@media(max-width:850px){.grid{grid-temp
 
 <script>
 const esc=s=>String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+
+const savedTheme=localStorage.getItem('rangelink32-theme');
+if(savedTheme) document.documentElement.dataset.theme=savedTheme;
+function toggleTheme(){
+  const next=document.documentElement.dataset.theme==='light'?'dark':'light';
+  document.documentElement.dataset.theme=next;
+  localStorage.setItem('rangelink32-theme',next);
+}
 
 async function loadNetworks(){
   const data=await (await fetch('/api/networks')).json();
@@ -300,12 +342,30 @@ async function loadProfiles(){
   const box=document.getElementById('profiles');
   box.innerHTML=data.length?data.map(p=>`
     <div class="row">
-      <div><b>${esc(p.ssid)}</b><div class="meta">Priority ${p.priority}${p.current?' · Connected':''}</div></div>
+      <div>
+        <b>${esc(p.ssid)}</b>
+        <div class="meta">Priority ${p.priority}${p.current?' · Connected':''} · Last RSSI ${p.lastRssi} dBm</div>
+        <div class="meta">Usage: ↓ ${bytes(p.rxBytes)} · ↑ ${bytes(p.txBytes)} · Total ${bytes(p.rxBytes+p.txBytes)}</div>
+      </div>
       <div class="actions">
         <form method="post" action="/profile/connect"><input type="hidden" name="ssid" value="${esc(p.ssid)}"><button class="btn secondary">Connect</button></form>
+        <form method="post" action="/profile/reveal" target="_blank">
+          <input type="hidden" name="ssid" value="${esc(p.ssid)}">
+          <input name="admin_password" type="password" placeholder="Admin password" required>
+          <button class="btn secondary">Reveal Password</button>
+        </form>
         <form method="post" action="/profile/forget"><input type="hidden" name="ssid" value="${esc(p.ssid)}"><button class="btn danger">Forget</button></form>
       </div>
     </div>`).join(''):'<small>No saved networks yet.</small>';
+}
+
+async function loadChannels(){
+  const data=await (await fetch('/api/channels')).json();
+  const box=document.getElementById('channels');
+  box.innerHTML=data.map(c=>{
+    const level=c.congestion<=3?'Low':c.congestion<=8?'Medium':'High';
+    return `<div class="row"><div><b>Channel ${c.channel}</b><div class="meta">${c.networks} direct network(s) · Congestion ${c.congestion} · ${level}</div></div></div>`;
+  }).join('');
 }
 
 function pickSsid(ssid){
@@ -316,10 +376,12 @@ function pickSsid(ssid){
 async function scanNow(){
   await fetch('/scan',{method:'POST'});
   await loadNetworks();
+  await loadChannels();
 }
 
 loadNetworks();
 loadProfiles();
+loadChannels();
 loadClients();
 loadLogs();
 setInterval(loadClients,5000);
@@ -344,6 +406,11 @@ void webAdminBegin() {
   server.on("/api/profiles", HTTP_GET, []() {
     if (!requireAdmin()) return;
     server.send(200, "application/json", getSavedProfilesJson());
+  });
+
+  server.on("/api/channels", HTTP_GET, []() {
+    if (!requireAdmin()) return;
+    server.send(200, "application/json", getChannelAnalysisJson());
   });
 
   server.on("/api/clients", HTTP_GET, []() {
@@ -379,6 +446,57 @@ void webAdminBegin() {
     const bool ok = connectSavedProfile(server.arg("ssid"));
     server.sendHeader("Location", ok ? "/" : "/?error=profile");
     server.send(303);
+  });
+
+  server.on("/profile/reveal", HTTP_POST, []() {
+    if (!requireAdmin()) return;
+
+    if (
+      server.arg("admin_password") !=
+      getAdminPassword()
+    ) {
+      server.send(
+        403,
+        "text/plain",
+        "Admin password verification failed."
+      );
+      return;
+    }
+
+    String secret;
+    if (
+      !getWifiProfileSecret(
+        server.arg("ssid"),
+        secret
+      )
+    ) {
+      server.send(
+        404,
+        "text/plain",
+        "Saved network not found."
+      );
+      return;
+    }
+
+    String safeSsid = server.arg("ssid");
+    safeSsid.replace("&", "&amp;");
+    safeSsid.replace("<", "&lt;");
+    safeSsid.replace(">", "&gt;");
+
+    String safeSecret = secret;
+    safeSecret.replace("&", "&amp;");
+    safeSecret.replace("<", "&lt;");
+    safeSecret.replace(">", "&gt;");
+
+    server.send(
+      200,
+      "text/html; charset=utf-8",
+      "<!doctype html><meta name='viewport' content='width=device-width'><title>RangeLink32 Credential</title><body style='font-family:system-ui;padding:24px;background:#07111d;color:#eef7ff'><h2>" +
+      safeSsid +
+      "</h2><p>Saved password:</p><p style='font-size:1.25rem'><code>" +
+      safeSecret +
+      "</code></p><p>Close this page when finished.</p></body>"
+    );
   });
 
   server.on("/profile/forget", HTTP_POST, []() {
@@ -534,6 +652,47 @@ void webAdminBegin() {
     server.send(303);
   });
 
+  server.on("/backup", HTTP_GET, []() {
+    if (!requireAdmin()) return;
+
+    server.sendHeader(
+      "Content-Disposition",
+      "attachment; filename=RangeLink32-backup.txt"
+    );
+
+    server.send(
+      200,
+      "text/plain",
+      exportSafeSettings()
+    );
+  });
+
+  server.on("/restore", HTTP_POST, []() {
+    if (!requireAdmin()) return;
+
+    if (!importSafeSettings(server.arg("backup"))) {
+      server.send(
+        400,
+        "text/plain",
+        "Invalid RangeLink32 backup."
+      );
+      return;
+    }
+
+    appendEventLog(
+      "settings",
+      "Configuration backup restored"
+    );
+
+    server.send(
+      200,
+      "text/html",
+      "<h2>Backup restored.</h2><p>RangeLink32 is restarting…</p>"
+    );
+
+    scheduleRestart();
+  });
+
   server.on("/logs/clear", HTTP_POST, []() {
     if (!requireAdmin()) return;
     clearEventLogs();
@@ -561,6 +720,32 @@ void webAdminBegin() {
       "text/html",
       "<h2>RangeLink32 settings saved.</h2><p>The ESP32 is restarting. Reconnect to the new Wi-Fi and open 192.168.50.1.</p>"
     );
+    scheduleRestart();
+  });
+
+  server.on("/settings/dns", HTTP_POST, []() {
+    if (!requireAdmin()) return;
+
+    if (!setCustomDns(server.arg("dns"))) {
+      server.send(
+        400,
+        "text/plain",
+        "DNS must be a valid IPv4 address or blank."
+      );
+      return;
+    }
+
+    appendEventLog(
+      "settings",
+      "Custom DNS changed"
+    );
+
+    server.send(
+      200,
+      "text/html",
+      "<h2>DNS saved.</h2><p>RangeLink32 is restarting…</p>"
+    );
+
     scheduleRestart();
   });
 
@@ -689,6 +874,77 @@ void webAdminBegin() {
     reconnectUpstream();
     server.sendHeader("Location", "/");
     server.send(303);
+  });
+
+  server.on("/qr.svg", HTTP_GET, []() {
+    if (!requireAdmin()) return;
+
+    String ssid = getApSsid();
+    String pass = getApPassword();
+
+    auto escapeWifi = [](String value) {
+      value.replace("\\", "\\\\");
+      value.replace(";", "\\;");
+      value.replace(",", "\\,");
+      value.replace(":", "\\:");
+      value.replace("\"", "\\\"");
+      return value;
+    };
+
+    const String payload =
+      "WIFI:T:WPA;S:" +
+      escapeWifi(ssid) +
+      ";P:" +
+      escapeWifi(pass) +
+      ";;";
+
+    constexpr uint8_t QR_VERSION = 6;
+    std::vector<uint8_t> buffer(
+      qrcode_getBufferSize(QR_VERSION)
+    );
+
+    QRCode qr;
+    qrcode_initText(
+      &qr,
+      buffer.data(),
+      QR_VERSION,
+      0,
+      payload.c_str()
+    );
+
+    const int quiet = 4;
+    const int viewSize = qr.size + quiet * 2;
+
+    String svg;
+    svg.reserve(12000);
+
+    svg =
+      "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 " +
+      String(viewSize) +
+      " " +
+      String(viewSize) +
+      "' shape-rendering='crispEdges'><rect width='100%' height='100%' fill='white'/>";
+
+    for (uint8_t y = 0; y < qr.size; ++y) {
+      for (uint8_t x = 0; x < qr.size; ++x) {
+        if (qrcode_getModule(&qr, x, y)) {
+          svg +=
+            "<rect x='" +
+            String(x + quiet) +
+            "' y='" +
+            String(y + quiet) +
+            "' width='1' height='1' fill='black'/>";
+        }
+      }
+    }
+
+    svg += "</svg>";
+
+    server.send(
+      200,
+      "image/svg+xml",
+      svg
+    );
   });
 
   server.on("/health", HTTP_GET, []() {

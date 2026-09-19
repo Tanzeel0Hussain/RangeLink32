@@ -325,9 +325,37 @@ void wifiManagerBegin() {
     RangeLinkConfig::AP_IP_D
   );
   IPAddress mask(255, 255, 255, 0);
+  IPAddress leaseStart(
+    RangeLinkConfig::AP_IP_A,
+    RangeLinkConfig::AP_IP_B,
+    RangeLinkConfig::AP_IP_C,
+    10
+  );
 
-  WiFi.softAPConfig(ip, ip, mask);
-  WiFi.softAP(getApSsid().c_str(), getApPassword().c_str());
+  IPAddress dns(1, 1, 1, 1);
+  const String customDns = getCustomDns();
+  if (customDns.length()) {
+    IPAddress parsed;
+    if (parsed.fromString(customDns)) {
+      dns = parsed;
+    }
+  }
+
+  WiFi.AP.begin();
+  WiFi.AP.config(
+    ip,
+    ip,
+    mask,
+    leaseStart,
+    dns
+  );
+  WiFi.AP.create(
+    getApSsid(),
+    getApPassword(),
+    1,
+    0,
+    8
+  );
 
   performScan();
   selectBestSavedProfile(false);

@@ -5,6 +5,7 @@
 #include "access_control.h"
 #include "router_engine.h"
 #include "web_admin.h"
+#include "system_monitor.h"
 
 void setup() {
   Serial.begin(115200);
@@ -16,6 +17,7 @@ void setup() {
   accessControlBegin();
   routerEngineBegin();
   webAdminBegin();
+  systemMonitorBegin();
 
   Serial.println();
   Serial.println("RangeLink32 started");
@@ -28,6 +30,7 @@ void loop() {
   accessControlLoop();
   routerEngineLoop();
   webAdminLoop();
+  systemMonitorLoop();
 
   delay(2);
 }
