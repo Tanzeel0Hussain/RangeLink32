@@ -58,7 +58,7 @@ void maintainUpstream() {
 
   lastReconnectAttempt = millis();
   WiFi.begin(targetSsid.c_str(), targetPassword.c_str());
-  reconnectDelayMs = min(reconnectDelayMs * 2UL, RangeLinkConfig::RECONNECT_MAX_MS);
+  reconnectDelayMs = (reconnectDelayMs * 2UL > static_cast<unsigned long>(RangeLinkConfig::RECONNECT_MAX_MS)) ? static_cast<unsigned long>(RangeLinkConfig::RECONNECT_MAX_MS) : reconnectDelayMs * 2UL;
 }
 }
 
