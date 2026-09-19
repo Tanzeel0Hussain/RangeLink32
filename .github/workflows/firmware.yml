@@ -8,12 +8,14 @@ on:
       - "firmware/**"
       - "platformio.ini"
       - ".github/workflows/firmware.yml"
+      - "tests/**"
   pull_request:
     branches: [main]
     paths:
       - "firmware/**"
       - "platformio.ini"
       - ".github/workflows/firmware.yml"
+      - "tests/**"
   workflow_dispatch:
 
 permissions:
@@ -40,6 +42,14 @@ jobs:
 
       - name: Install PlatformIO
         run: pip install platformio esptool
+
+      - name: Run host logic tests
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror \
+            -Ifirmware/include \
+            tests/policy_logic_test.cpp \
+            -o /tmp/rangelink32-policy-tests
+          /tmp/rangelink32-policy-tests
 
       - name: Build ESP32 firmware
         run: pio run -e esp32dev

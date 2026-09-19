@@ -12,6 +12,7 @@ extern "C" {
 #include "storage.h"
 #include "traffic_monitor.h"
 #include "config.h"
+#include "policy_logic.h"
 
 namespace {
 constexpr unsigned long CLIENT_REFRESH_MS = 2000;
@@ -119,30 +120,12 @@ uint8_t currentLocalHour() {
 }
 
 bool scheduleAllows(const ClientRecord& record) {
-  if (!record.scheduleEnabled) return true;
-
-  const uint8_t hour = currentLocalHour();
-
-  // Fail open if NTP time has not synchronized yet.
-  if (hour == 255) return true;
-
-  const uint8_t start =
-    record.scheduleStartHour > 23
-      ? 23
-      : record.scheduleStartHour;
-
-  const uint8_t end =
-    record.scheduleEndHour > 24
-      ? 24
-      : record.scheduleEndHour;
-
-  if (start == end) return true;
-
-  if (start < end) {
-    return hour >= start && hour < end;
-  }
-
-  return hour >= start || hour < end;
+  return RangeLinkLogic::scheduleAllowsHour(
+    record.scheduleEnabled,
+    record.scheduleStartHour,
+    record.scheduleEndHour,
+    currentLocalHour()
+  );
 }
 
 bool guestActive(const ClientRecord& record) {
@@ -244,17 +227,21 @@ bool effectivePolicyAllows(ClientRecord& record) {
   if (!scheduleAllows(record)) return false;
 
   if (
-    record.dailyQuotaBytes > 0 &&
-    record.dailyRxBytes + record.dailyTxBytes >=
+    RangeLinkLogic::quotaReached(
+      record.dailyRxBytes,
+      record.dailyTxBytes,
       record.dailyQuotaBytes
+    )
   ) {
     return false;
   }
 
   if (
-    record.monthlyQuotaBytes > 0 &&
-    record.monthlyRxBytes + record.monthlyTxBytes >=
+    RangeLinkLogic::quotaReached(
+      record.monthlyRxBytes,
+      record.monthlyTxBytes,
       record.monthlyQuotaBytes
+    )
   ) {
     return false;
   }

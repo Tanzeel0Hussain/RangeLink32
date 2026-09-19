@@ -308,6 +308,7 @@ RangeLink32/
 
 | Area | Status |
 |---|---|
+| Host policy/failover logic tests | ✅ Automated in CI |
 | Firmware CI compile | ✅ Passing |
 | Browser-installable firmware generation | ✅ Passing |
 | GitHub Pages deployment | ✅ Passing |

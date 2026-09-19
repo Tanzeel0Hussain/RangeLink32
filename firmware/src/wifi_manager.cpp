@@ -3,6 +3,7 @@
 #include "storage.h"
 #include "traffic_monitor.h"
 #include "config.h"
+#include "policy_logic.h"
 
 namespace {
 constexpr size_t MAX_SCAN_RESULTS = 32;
@@ -358,9 +359,15 @@ bool selectBestSavedProfile(bool preferDifferent) {
       continue;
     }
 
-    if (bestIndex < 0 ||
-        profiles[i].priority < bestPriority ||
-        (profiles[i].priority == bestPriority && rssi > bestRssi)) {
+    if (
+      RangeLinkLogic::profileIsBetter(
+        profiles[i].priority,
+        rssi,
+        bestIndex >= 0,
+        bestPriority,
+        bestRssi
+      )
+    ) {
       bestIndex = static_cast<int>(i);
       bestPriority = profiles[i].priority;
       bestRssi = rssi;
@@ -594,9 +601,10 @@ bool connectUpstream(
   if (
     ssid.length() == 0 ||
     ssid.length() > 32 ||
-    (!openNetwork &&
-      (password.length() < 8 ||
-       password.length() > 63))
+    !RangeLinkLogic::validUpstreamSecret(
+      openNetwork,
+      password.length()
+    )
   ) {
     return false;
   }
