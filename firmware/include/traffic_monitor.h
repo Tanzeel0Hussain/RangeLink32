@@ -23,6 +23,7 @@ bool trafficMonitorGetStats(
 
 bool trafficMonitorResetUsage(const String& mac, bool resetTotal);
 bool trafficMonitorResetMonthlyUsage(const String& mac);
+bool trafficMonitorForgetClient(const String& mac);
 void trafficMonitorGetTotals(
   uint64_t& rxBytes,
   uint64_t& txBytes

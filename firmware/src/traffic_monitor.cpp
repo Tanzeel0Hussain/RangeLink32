@@ -450,3 +450,24 @@ void trafficMonitorGetTotals(
   txBytes = gatewayTxBytes;
   portEXIT_CRITICAL(&trafficMux);
 }
+
+
+bool trafficMonitorForgetClient(
+  const String& macText
+) {
+  uint8_t mac[6];
+  if (!parseMac(macText, mac)) return false;
+
+  bool found = false;
+
+  portENTER_CRITICAL(&trafficMux);
+
+  const int index = findSlotByMac(mac);
+  if (index >= 0) {
+    slots[index] = TrafficSlot();
+    found = true;
+  }
+
+  portEXIT_CRITICAL(&trafficMux);
+  return found;
+}

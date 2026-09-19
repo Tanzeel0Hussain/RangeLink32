@@ -311,6 +311,72 @@ void persistRuntimeStats() {
   lastStatsFlushMs = millis();
 }
 
+bool policyIsUnmanaged(
+  const ClientRecord& record
+) {
+  return
+    !record.approved &&
+    !record.blocked &&
+    record.hostname.length() == 0 &&
+    record.dailyQuotaBytes == 0 &&
+    record.monthlyQuotaBytes == 0 &&
+    record.bandwidthKbps == 0 &&
+    !record.scheduleEnabled &&
+    record.guestUntilEpoch == 0;
+}
+
+bool macIsCurrentlyConnected(
+  const wifi_sta_list_t& wifiList,
+  const String& mac
+) {
+  for (int i = 0; i < wifiList.num; ++i) {
+    if (
+      macToString(wifiList.sta[i].mac)
+        .equalsIgnoreCase(mac)
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+bool reclaimUnmanagedClientSlot(
+  const wifi_sta_list_t& wifiList
+) {
+  for (size_t i = 0; i < policyCount; ++i) {
+    const ClientRecord& candidate = policies[i];
+
+    if (
+      policyIsUnmanaged(candidate) &&
+      !macIsCurrentlyConnected(
+        wifiList,
+        candidate.mac
+      )
+    ) {
+      const String removedMac =
+        candidate.mac;
+
+      if (!removeClientPolicy(removedMac)) {
+        return false;
+      }
+
+      trafficMonitorForgetClient(removedMac);
+      reloadPolicies();
+
+      appendEventLog(
+        "client",
+        "Reclaimed unmanaged history slot " +
+        removedMac
+      );
+
+      return true;
+    }
+  }
+
+  return false;
+}
+
 void refreshClients() {
   wifi_sta_list_t wifiList = {};
 
@@ -364,14 +430,26 @@ void refreshClients() {
       seen.usageDay = currentLocalDay();
       seen.usageMonth = currentLocalMonth();
 
-      saveClientPolicy(seen);
-      reloadPolicies();
+      bool saved =
+        saveClientPolicy(seen);
 
+      if (
+        !saved &&
+        reclaimUnmanagedClientSlot(wifiList)
+      ) {
+        saved =
+          saveClientPolicy(seen);
+      }
+
+      reloadPolicies();
       index = policyIndex(record.mac);
 
       appendEventLog(
         "client",
-        "First seen " + record.mac
+        saved
+          ? "First seen " + record.mac
+          : "Client history full; could not save " +
+            record.mac
       );
     }
 
@@ -704,6 +782,33 @@ bool resetClientMonthlyUsage(
   reloadPolicies();
   refreshClients();
 
+  return true;
+}
+
+bool forgetKnownClient(
+  const String& mac
+) {
+  if (mac.length() != 17) return false;
+
+  for (size_t i = 0; i < liveCount; ++i) {
+    if (
+      liveClients[i].mac.equalsIgnoreCase(mac) &&
+      liveClients[i].connected
+    ) {
+      return false;
+    }
+  }
+
+  if (!removeClientPolicy(mac)) return false;
+
+  trafficMonitorForgetClient(mac);
+  appendEventLog(
+    "client",
+    "Forgot known device " + mac
+  );
+
+  reloadPolicies();
+  refreshClients();
   return true;
 }
 

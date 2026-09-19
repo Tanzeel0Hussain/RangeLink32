@@ -56,6 +56,17 @@ void clearWifiSlot(size_t index) {
   prefs.remove(wifiKey(index, "tx").c_str());
 }
 
+void clearClientSlot(size_t index) {
+  const char* suffixes[] = {
+    "m","n","a","b","rx","tx","dr","dt","q",
+    "mr","mt","mq","bw","gu","day","mon","se","sh","eh"
+  };
+
+  for (const char* suffix : suffixes) {
+    prefs.remove(clientKey(index, suffix).c_str());
+  }
+}
+
 void writeClientSlot(size_t index, const ClientRecord& record) {
   prefs.putString(clientKey(index, "m").c_str(), record.mac);
   prefs.putString(clientKey(index, "n").c_str(), record.hostname);
@@ -602,6 +613,41 @@ bool saveClientPolicy(const ClientRecord& record) {
 
   writeClientSlot(count, record);
   prefs.putUChar("client_n", static_cast<uint8_t>(count + 1));
+
+  return true;
+}
+
+
+bool removeClientPolicy(const String& mac) {
+  ClientRecord policies[RangeLinkConfig::MAX_CLIENT_RECORDS];
+  size_t count =
+    loadClientPolicies(
+      policies,
+      RangeLinkConfig::MAX_CLIENT_RECORDS
+    );
+
+  size_t found = count;
+
+  for (size_t i = 0; i < count; ++i) {
+    if (policies[i].mac.equalsIgnoreCase(mac)) {
+      found = i;
+      break;
+    }
+  }
+
+  if (found == count) return false;
+
+  for (size_t i = found; i + 1 < count; ++i) {
+    writeClientSlot(i, policies[i + 1]);
+  }
+
+  if (count > 0) {
+    clearClientSlot(count - 1);
+    prefs.putUChar(
+      "client_n",
+      static_cast<uint8_t>(count - 1)
+    );
+  }
 
   return true;
 }

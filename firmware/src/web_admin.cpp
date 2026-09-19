@@ -468,6 +468,11 @@ async function loadClients(){
           <input type="hidden" name="total" value="1">
           <button class="btn danger">Reset All Usage</button>
         </form>
+        ${!c.connected?`
+        <form method="post" action="/client/forget" onsubmit="return confirm('Forget this offline device and remove its saved policy/history?')">
+          <input type="hidden" name="mac" value="${esc(c.mac)}">
+          <button class="btn danger">Forget Device</button>
+        </form>`:''}
       </div>
     </div>`;
   }).join(''):'<small>No devices have connected yet.</small>';
@@ -897,6 +902,23 @@ void webAdminBegin() {
       server.arg("mac"),
       server.arg("total") == "1"
     );
+
+    server.sendHeader("Location", "/");
+    server.send(303);
+  });
+
+
+  server.on("/client/forget", HTTP_POST, []() {
+    if (!requireAdmin()) return;
+
+    if (!forgetKnownClient(server.arg("mac"))) {
+      server.send(
+        409,
+        "text/plain",
+        "Device could not be forgotten. Disconnect it first or verify the MAC address."
+      );
+      return;
+    }
 
     server.sendHeader("Location", "/");
     server.send(303);

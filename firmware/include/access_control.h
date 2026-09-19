@@ -31,6 +31,7 @@ bool setClientSchedule(
 bool grantGuestAccess(const String& mac, uint32_t minutes);
 bool resetClientUsage(const String& mac, bool resetTotal);
 bool resetClientMonthlyUsage(const String& mac);
+bool forgetKnownClient(const String& mac);
 
 bool clientMayUseInternet(const String& mac);
 String getClientTableJson();
