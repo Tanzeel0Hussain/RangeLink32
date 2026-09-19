@@ -33,8 +33,79 @@ unsigned long lastNetworkUsageFlushMs = 0;
 uint64_t lastGatewayRxBytes = 0;
 uint64_t lastGatewayTxBytes = 0;
 String usageSsid;
+String appliedDownstreamDns;
 
 String scanJson = "[]";
+
+IPAddress desiredDownstreamDns() {
+  const String customDns = getCustomDns();
+
+  if (customDns.length()) {
+    IPAddress parsed;
+    if (parsed.fromString(customDns)) {
+      return parsed;
+    }
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    const IPAddress upstreamDns =
+      WiFi.dnsIP(0);
+
+    if (
+      static_cast<uint32_t>(
+        upstreamDns
+      ) != 0
+    ) {
+      return upstreamDns;
+    }
+  }
+
+  return IPAddress(1, 1, 1, 1);
+}
+
+void applyDownstreamDnsIfNeeded() {
+  const IPAddress dns =
+    desiredDownstreamDns();
+
+  const String dnsText =
+    dns.toString();
+
+  if (dnsText == appliedDownstreamDns) {
+    return;
+  }
+
+  IPAddress ip(
+    RangeLinkConfig::AP_IP_A,
+    RangeLinkConfig::AP_IP_B,
+    RangeLinkConfig::AP_IP_C,
+    RangeLinkConfig::AP_IP_D
+  );
+  IPAddress mask(255, 255, 255, 0);
+  IPAddress leaseStart(
+    RangeLinkConfig::AP_IP_A,
+    RangeLinkConfig::AP_IP_B,
+    RangeLinkConfig::AP_IP_C,
+    10
+  );
+
+  if (
+    WiFi.AP.config(
+      ip,
+      ip,
+      mask,
+      leaseStart,
+      dns
+    )
+  ) {
+    appliedDownstreamDns = dnsText;
+
+    appendEventLog(
+      "dns",
+      "Downstream DNS set to " +
+      dnsText
+    );
+  }
+}
 
 void refreshState() {
   state.upstreamConnected = WiFi.status() == WL_CONNECTED;
@@ -62,6 +133,8 @@ void refreshState() {
     }
     lastUpstreamState = state.upstreamConnected;
   }
+
+  applyDownstreamDnsIfNeeded();
 }
 
 void accountNetworkUsage() {
@@ -393,14 +466,8 @@ void wifiManagerBegin() {
     10
   );
 
-  IPAddress dns(1, 1, 1, 1);
-  const String customDns = getCustomDns();
-  if (customDns.length()) {
-    IPAddress parsed;
-    if (parsed.fromString(customDns)) {
-      dns = parsed;
-    }
-  }
+  const IPAddress dns =
+    desiredDownstreamDns();
 
   WiFi.AP.begin();
   WiFi.AP.config(
@@ -410,6 +477,8 @@ void wifiManagerBegin() {
     leaseStart,
     dns
   );
+  appliedDownstreamDns =
+    dns.toString();
   WiFi.AP.create(
     getApSsid(),
     getApPassword(),
