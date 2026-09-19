@@ -146,6 +146,50 @@ jobs:
           git tag -a "$TAG" -m "RangeLink32 $TAG"
           git push origin "$TAG"
 
+      - name: Publish current VERSION release when tag exists
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION="$(tr -d '[:space:]' < VERSION)"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::VERSION must use semantic version format."
+            exit 1
+          fi
+
+          TAG="v$VERSION"
+          git fetch --tags origin
+
+          if ! git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG does not exist yet; nothing to publish."
+            exit 0
+          fi
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; immutable release left unchanged."
+            exit 0
+          fi
+
+          RELEASE_DIR="$(mktemp -d)"
+          git show "$TAG:docs/firmware/rangelink32-full.bin" > "$RELEASE_DIR/rangelink32-full.bin"
+          git show "$TAG:docs/firmware/rangelink32-ota.bin" > "$RELEASE_DIR/rangelink32-ota.bin"
+
+          (
+            cd "$RELEASE_DIR"
+            sha256sum               rangelink32-full.bin               rangelink32-ota.bin               > SHA256SUMS.txt
+          )
+
+          NOTES=".github/releases/$TAG.md"
+
+          if [ -f "$NOTES" ]; then
+            gh release create "$TAG"               --verify-tag               --title "RangeLink32 $TAG — Security & Reliability Update"               --notes-file "$NOTES"               --latest               "$RELEASE_DIR/rangelink32-full.bin"               "$RELEASE_DIR/rangelink32-ota.bin"               "$RELEASE_DIR/SHA256SUMS.txt"
+          else
+            gh release create "$TAG"               --verify-tag               --title "RangeLink32 $TAG"               --generate-notes               --latest               "$RELEASE_DIR/rangelink32-full.bin"               "$RELEASE_DIR/rangelink32-ota.bin"               "$RELEASE_DIR/SHA256SUMS.txt"
+          fi
+
       - name: Publish immutable tagged firmware release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
