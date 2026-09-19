@@ -8,15 +8,15 @@
 
 [![Firmware Build](https://github.com/Tanzeel0Hussain/RangeLink32/actions/workflows/firmware.yml/badge.svg)](https://github.com/Tanzeel0Hussain/RangeLink32/actions/workflows/firmware.yml)
 [![Live Site](https://img.shields.io/badge/Live-Project_Site-15c8ff)](https://tanzeel0hussain.github.io/RangeLink32/)
-[![Firmware](https://img.shields.io/badge/Firmware-v1.0.0-43e5a3)](https://github.com/Tanzeel0Hussain/RangeLink32/releases/tag/v1.0.0)
+[![Firmware](https://img.shields.io/badge/Firmware-v1.0.1-43e5a3)](https://github.com/Tanzeel0Hussain/RangeLink32/releases/tag/v1.0.1)
 [![ESP32](https://img.shields.io/badge/Target-ESP32U-0f88ff)](docs/HARDWARE.md)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 **Extend Wi-Fi. Control access. Manage every device from a local router-style dashboard.**
 
 [Install RangeLink32](https://tanzeel0hussain.github.io/RangeLink32/#start) ·
-[Download Full Firmware](https://github.com/Tanzeel0Hussain/RangeLink32/releases/download/v1.0.0/rangelink32-full.bin) ·
-[Release v1.0.0](https://github.com/Tanzeel0Hussain/RangeLink32/releases/tag/v1.0.0) ·
+[Download Full Firmware](https://github.com/Tanzeel0Hussain/RangeLink32/releases/download/v1.0.1/rangelink32-full.bin) ·
+[Release v1.0.1](https://github.com/Tanzeel0Hussain/RangeLink32/releases/tag/v1.0.1) ·
 [Hardware Notes](docs/HARDWARE.md)
 
 </div>
@@ -220,14 +220,14 @@ The easiest first-install method is the browser installer:
 
 **[Open RangeLink32 Installer](https://tanzeel0hussain.github.io/RangeLink32/#start)**
 
-The **[v1.0.0 release](https://github.com/Tanzeel0Hussain/RangeLink32/releases/tag/v1.0.0)** includes:
+The **[v1.0.1 release](https://github.com/Tanzeel0Hussain/RangeLink32/releases/tag/v1.0.1)** includes:
 
 | Firmware file | Purpose |
 |---|---|
 | `rangelink32-full.bin` | Combined first-install image; flash from offset `0x0` |
 | `rangelink32-ota.bin` | Application image for the local OTA updater; the updater requires its official SHA-256 digest |
 
-Direct first-install firmware: **[Download `rangelink32-full.bin`](https://github.com/Tanzeel0Hussain/RangeLink32/releases/download/v1.0.0/rangelink32-full.bin)**
+Direct first-install firmware: **[Download `rangelink32-full.bin`](https://github.com/Tanzeel0Hussain/RangeLink32/releases/download/v1.0.1/rangelink32-full.bin)**
 
 ---
 

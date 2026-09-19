@@ -9,6 +9,7 @@ on:
       - "platformio.ini"
       - ".github/workflows/firmware.yml"
       - "tests/**"
+      - "VERSION"
   pull_request:
     branches: [main]
     paths:
@@ -16,6 +17,7 @@ on:
       - "platformio.ini"
       - ".github/workflows/firmware.yml"
       - "tests/**"
+      - "VERSION"
   workflow_dispatch:
 
 permissions:
@@ -120,6 +122,29 @@ jobs:
 
           git pull --rebase origin main
           git push
+
+      - name: Create version tag for release commit
+        if: github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'release:')
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION="$(tr -d '[:space:]' < VERSION)"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::VERSION must use semantic version format, for example 1.0.1"
+            exit 1
+          fi
+
+          TAG="v$VERSION"
+          git fetch --tags origin
+
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "::error::Tag $TAG already exists. Releases are immutable; bump VERSION instead."
+            exit 1
+          fi
+
+          git tag -a "$TAG" -m "RangeLink32 $TAG"
+          git push origin "$TAG"
 
       - name: Publish immutable tagged firmware release
         if: startsWith(github.ref, 'refs/tags/v')
