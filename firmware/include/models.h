@@ -16,11 +16,24 @@ struct ClientRecord {
   String ip;
   String mac;
   int32_t rssi = -127;
+
   uint64_t rxBytes = 0;
   uint64_t txBytes = 0;
+  uint64_t dailyRxBytes = 0;
+  uint64_t dailyTxBytes = 0;
+  uint64_t dailyQuotaBytes = 0;
+
+  uint32_t bandwidthKbps = 0;
+  uint32_t guestUntilEpoch = 0;
+  int32_t usageDay = -1;
+
+  uint8_t scheduleStartHour = 0;
+  uint8_t scheduleEndHour = 24;
+
   bool connected = false;
   bool approved = false;
   bool blocked = false;
+  bool scheduleEnabled = false;
 };
 
 struct SystemState {

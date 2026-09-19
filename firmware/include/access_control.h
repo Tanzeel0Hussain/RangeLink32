@@ -15,5 +15,20 @@ void setAccessMode(AccessMode mode);
 
 bool setClientApproval(const String& mac, bool approved);
 bool setClientBlocked(const String& mac, bool blocked);
+bool setClientName(const String& mac, const String& name);
+bool setClientLimits(
+  const String& mac,
+  uint64_t dailyQuotaBytes,
+  uint32_t bandwidthKbps
+);
+bool setClientSchedule(
+  const String& mac,
+  bool enabled,
+  uint8_t startHour,
+  uint8_t endHour
+);
+bool grantGuestAccess(const String& mac, uint32_t minutes);
+bool resetClientUsage(const String& mac, bool resetTotal);
+
 bool clientMayUseInternet(const String& mac);
 String getClientTableJson();

@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include "storage.h"
 #include "wifi_manager.h"
+#include "traffic_monitor.h"
 #include "access_control.h"
 #include "router_engine.h"
 #include "web_admin.h"
@@ -11,6 +12,7 @@ void setup() {
 
   storageBegin();
   wifiManagerBegin();
+  trafficMonitorBegin();
   accessControlBegin();
   routerEngineBegin();
   webAdminBegin();
@@ -22,8 +24,10 @@ void setup() {
 
 void loop() {
   wifiManagerLoop();
+  trafficMonitorLoop();
   accessControlLoop();
   routerEngineLoop();
   webAdminLoop();
+
   delay(2);
 }

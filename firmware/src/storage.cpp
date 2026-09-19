@@ -45,8 +45,23 @@ void clearWifiSlot(size_t index) {
 
 void writeClientSlot(size_t index, const ClientRecord& record) {
   prefs.putString(clientKey(index, "m").c_str(), record.mac);
+  prefs.putString(clientKey(index, "n").c_str(), record.hostname);
   prefs.putBool(clientKey(index, "a").c_str(), record.approved);
   prefs.putBool(clientKey(index, "b").c_str(), record.blocked);
+
+  prefs.putULong64(clientKey(index, "rx").c_str(), record.rxBytes);
+  prefs.putULong64(clientKey(index, "tx").c_str(), record.txBytes);
+  prefs.putULong64(clientKey(index, "dr").c_str(), record.dailyRxBytes);
+  prefs.putULong64(clientKey(index, "dt").c_str(), record.dailyTxBytes);
+  prefs.putULong64(clientKey(index, "q").c_str(), record.dailyQuotaBytes);
+
+  prefs.putUInt(clientKey(index, "bw").c_str(), record.bandwidthKbps);
+  prefs.putUInt(clientKey(index, "gu").c_str(), record.guestUntilEpoch);
+  prefs.putInt(clientKey(index, "day").c_str(), record.usageDay);
+
+  prefs.putBool(clientKey(index, "se").c_str(), record.scheduleEnabled);
+  prefs.putUChar(clientKey(index, "sh").c_str(), record.scheduleStartHour);
+  prefs.putUChar(clientKey(index, "eh").c_str(), record.scheduleEndHour);
 }
 }
 
@@ -66,9 +81,10 @@ void storageBegin() {
     prefs.putString("admin_user", RangeLinkConfig::DEFAULT_ADMIN_USER);
   }
   if (!prefs.isKey("admin_pass")) {
-    // Development bootstrap only. Protected admin credentials and encrypted
-    // upstream secrets are a dedicated security milestone.
     prefs.putString("admin_pass", RangeLinkConfig::DEFAULT_ADMIN_PASSWORD);
+  }
+  if (!prefs.isKey("tz_min")) {
+    prefs.putInt("tz_min", 300);
   }
 }
 
@@ -109,18 +125,23 @@ size_t loadWifiProfiles(WifiProfile* out, size_t maxCount) {
   if (count > RangeLinkConfig::MAX_WIFI_PROFILES) {
     count = RangeLinkConfig::MAX_WIFI_PROFILES;
   }
-  if (count > maxCount) {
-    count = maxCount;
-  }
+  if (count > maxCount) count = maxCount;
 
   size_t written = 0;
+
   for (size_t i = 0; i < count; ++i) {
     WifiProfile profile;
-    profile.ssid = prefs.getString(wifiKey(i, "s").c_str(), "");
-    profile.secret = prefs.getString(wifiKey(i, "p").c_str(), "");
-    profile.priority = prefs.getInt(wifiKey(i, "q").c_str(), 100);
-    profile.lastRssi = prefs.getInt(wifiKey(i, "r").c_str(), -127);
-    profile.enabled = prefs.getBool(wifiKey(i, "e").c_str(), true);
+
+    profile.ssid =
+      prefs.getString(wifiKey(i, "s").c_str(), "");
+    profile.secret =
+      prefs.getString(wifiKey(i, "p").c_str(), "");
+    profile.priority =
+      prefs.getInt(wifiKey(i, "q").c_str(), 100);
+    profile.lastRssi =
+      prefs.getInt(wifiKey(i, "r").c_str(), -127);
+    profile.enabled =
+      prefs.getBool(wifiKey(i, "e").c_str(), true);
 
     if (profile.ssid.length() == 0) continue;
     out[written++] = profile;
@@ -130,10 +151,13 @@ size_t loadWifiProfiles(WifiProfile* out, size_t maxCount) {
 }
 
 bool saveWifiProfile(const WifiProfile& profile) {
-  if (profile.ssid.length() == 0 || profile.secret.length() < 8) return false;
+  if (profile.ssid.length() == 0 || profile.secret.length() < 8) {
+    return false;
+  }
 
   WifiProfile profiles[RangeLinkConfig::MAX_WIFI_PROFILES];
-  size_t count = loadWifiProfiles(profiles, RangeLinkConfig::MAX_WIFI_PROFILES);
+  size_t count =
+    loadWifiProfiles(profiles, RangeLinkConfig::MAX_WIFI_PROFILES);
 
   for (size_t i = 0; i < count; ++i) {
     if (profiles[i].ssid == profile.ssid) {
@@ -150,16 +174,20 @@ bool saveWifiProfile(const WifiProfile& profile) {
 
   WifiProfile stored = profile;
   stored.priority = 100 + static_cast<int>(count);
+
   writeWifiSlot(count, stored);
   prefs.putUChar("wifi_n", static_cast<uint8_t>(count + 1));
+
   return true;
 }
 
 bool removeWifiProfile(const String& ssid) {
   WifiProfile profiles[RangeLinkConfig::MAX_WIFI_PROFILES];
-  size_t count = loadWifiProfiles(profiles, RangeLinkConfig::MAX_WIFI_PROFILES);
+  size_t count =
+    loadWifiProfiles(profiles, RangeLinkConfig::MAX_WIFI_PROFILES);
 
   size_t found = count;
+
   for (size_t i = 0; i < count; ++i) {
     if (profiles[i].ssid == ssid) {
       found = i;
@@ -193,19 +221,50 @@ size_t loadClientPolicies(ClientRecord* out, size_t maxCount) {
   if (!out || maxCount == 0) return 0;
 
   size_t count = prefs.getUChar("client_n", 0);
+
   if (count > RangeLinkConfig::MAX_CLIENT_RECORDS) {
     count = RangeLinkConfig::MAX_CLIENT_RECORDS;
   }
-  if (count > maxCount) {
-    count = maxCount;
-  }
+  if (count > maxCount) count = maxCount;
 
   size_t written = 0;
+
   for (size_t i = 0; i < count; ++i) {
     ClientRecord record;
-    record.mac = prefs.getString(clientKey(i, "m").c_str(), "");
-    record.approved = prefs.getBool(clientKey(i, "a").c_str(), false);
-    record.blocked = prefs.getBool(clientKey(i, "b").c_str(), false);
+
+    record.mac =
+      prefs.getString(clientKey(i, "m").c_str(), "");
+    record.hostname =
+      prefs.getString(clientKey(i, "n").c_str(), "");
+    record.approved =
+      prefs.getBool(clientKey(i, "a").c_str(), false);
+    record.blocked =
+      prefs.getBool(clientKey(i, "b").c_str(), false);
+
+    record.rxBytes =
+      prefs.getULong64(clientKey(i, "rx").c_str(), 0);
+    record.txBytes =
+      prefs.getULong64(clientKey(i, "tx").c_str(), 0);
+    record.dailyRxBytes =
+      prefs.getULong64(clientKey(i, "dr").c_str(), 0);
+    record.dailyTxBytes =
+      prefs.getULong64(clientKey(i, "dt").c_str(), 0);
+    record.dailyQuotaBytes =
+      prefs.getULong64(clientKey(i, "q").c_str(), 0);
+
+    record.bandwidthKbps =
+      prefs.getUInt(clientKey(i, "bw").c_str(), 0);
+    record.guestUntilEpoch =
+      prefs.getUInt(clientKey(i, "gu").c_str(), 0);
+    record.usageDay =
+      prefs.getInt(clientKey(i, "day").c_str(), -1);
+
+    record.scheduleEnabled =
+      prefs.getBool(clientKey(i, "se").c_str(), false);
+    record.scheduleStartHour =
+      prefs.getUChar(clientKey(i, "sh").c_str(), 0);
+    record.scheduleEndHour =
+      prefs.getUChar(clientKey(i, "eh").c_str(), 24);
 
     if (record.mac.length() == 0) continue;
     out[written++] = record;
@@ -232,7 +291,18 @@ bool saveClientPolicy(const ClientRecord& record) {
 
   writeClientSlot(count, record);
   prefs.putUChar("client_n", static_cast<uint8_t>(count + 1));
+
   return true;
+}
+
+int getTimezoneOffsetMinutes() {
+  return prefs.getInt("tz_min", 300);
+}
+
+void setTimezoneOffsetMinutes(int minutes) {
+  if (minutes < -720) minutes = -720;
+  if (minutes > 840) minutes = 840;
+  prefs.putInt("tz_min", minutes);
 }
 
 void appendEventLog(const String& type, const String& message) {
@@ -241,6 +311,7 @@ void appendEventLog(const String& type, const String& message) {
 
   String safeType = type;
   String safeMessage = message;
+
   safeType.replace("|", "/");
   safeMessage.replace("|", "/");
   safeMessage.replace("\n", " ");
@@ -254,7 +325,9 @@ void appendEventLog(const String& type, const String& message) {
 
   prefs.putString(logKey(head).c_str(), entry);
 
-  head = static_cast<uint8_t>((head + 1) % MAX_EVENT_LOGS);
+  head =
+    static_cast<uint8_t>((head + 1) % MAX_EVENT_LOGS);
+
   if (count < MAX_EVENT_LOGS) ++count;
 
   prefs.putUChar("log_head", head);
@@ -262,18 +335,25 @@ void appendEventLog(const String& type, const String& message) {
 }
 
 String getEventLogJson() {
-  const uint8_t head = prefs.getUChar("log_head", 0);
-  const uint8_t count = prefs.getUChar("log_count", 0);
+  const uint8_t head =
+    prefs.getUChar("log_head", 0);
+  const uint8_t count =
+    prefs.getUChar("log_count", 0);
 
   String json = "[";
+
   const uint8_t oldest =
-    static_cast<uint8_t>((head + MAX_EVENT_LOGS - count) % MAX_EVENT_LOGS);
+    static_cast<uint8_t>(
+      (head + MAX_EVENT_LOGS - count) % MAX_EVENT_LOGS
+    );
 
   for (uint8_t n = 0; n < count; ++n) {
     const uint8_t index =
       static_cast<uint8_t>((oldest + n) % MAX_EVENT_LOGS);
 
-    String entry = prefs.getString(logKey(index).c_str(), "");
+    String entry =
+      prefs.getString(logKey(index).c_str(), "");
+
     if (entry.length() == 0) continue;
 
     const int p1 = entry.indexOf('|');
@@ -304,6 +384,7 @@ void clearEventLogs() {
   for (uint8_t i = 0; i < MAX_EVENT_LOGS; ++i) {
     prefs.remove(logKey(i).c_str());
   }
+
   prefs.putUChar("log_head", 0);
   prefs.putUChar("log_count", 0);
 }
