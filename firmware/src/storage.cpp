@@ -282,6 +282,59 @@ bool setAdminCredentials(const String& username, const String& password) {
   return true;
 }
 
+
+bool initialSetupRequired() {
+  return
+    getApPassword() ==
+      RangeLinkConfig::DEFAULT_AP_PASSWORD ||
+    getAdminPassword() ==
+      RangeLinkConfig::DEFAULT_ADMIN_PASSWORD;
+}
+
+bool setInitialCredentials(
+  const String& ssid,
+  const String& apPassword,
+  const String& adminUser,
+  const String& adminPassword
+) {
+  if (
+    ssid.length() == 0 ||
+    ssid.length() > 32 ||
+    apPassword.length() < 8 ||
+    apPassword.length() > 63 ||
+    adminUser.length() == 0 ||
+    adminUser.length() > 32 ||
+    adminPassword.length() < 8 ||
+    adminPassword.length() > 64 ||
+    apPassword == adminPassword ||
+    apPassword ==
+      RangeLinkConfig::DEFAULT_AP_PASSWORD ||
+    adminPassword ==
+      RangeLinkConfig::DEFAULT_ADMIN_PASSWORD
+  ) {
+    return false;
+  }
+
+  const String protectedAp =
+    protectSecret(apPassword);
+  const String protectedAdmin =
+    protectSecret(adminPassword);
+
+  if (
+    protectedAp.length() == 0 ||
+    protectedAdmin.length() == 0
+  ) {
+    return false;
+  }
+
+  prefs.putString("ap_ssid", ssid);
+  prefs.putString("ap_pass", protectedAp);
+  prefs.putString("admin_user", adminUser);
+  prefs.putString("admin_pass", protectedAdmin);
+
+  return true;
+}
+
 size_t loadWifiProfiles(WifiProfile* out, size_t maxCount) {
   if (!out || maxCount == 0) return 0;
 

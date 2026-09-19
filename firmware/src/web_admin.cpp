@@ -26,16 +26,65 @@ void scheduleRestart() {
   restartRequestedAt = millis();
 }
 
-bool requireAdmin() {
+bool requireAdmin(bool allowDuringInitialSetup = false) {
   const String user = getAdminUser();
   const String pass = getAdminPassword();
 
-  if (server.authenticate(user.c_str(), pass.c_str())) {
-    return true;
+  if (!server.authenticate(user.c_str(), pass.c_str())) {
+    server.requestAuthentication();
+    return false;
   }
 
-  server.requestAuthentication();
-  return false;
+  if (
+    !allowDuringInitialSetup &&
+    initialSetupRequired()
+  ) {
+    server.sendHeader("Location", "/");
+    server.send(303);
+    return false;
+  }
+
+  return true;
+}
+
+String renderInitialSetupPage() {
+  String html;
+  html.reserve(5200);
+
+  html += R"HTML(<!doctype html><html><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RangeLink32 First-Boot Security Setup</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#06101b;color:#eef7ff;font-family:system-ui,sans-serif}
+.wrap{max-width:720px;margin:auto;padding:28px 18px}.card{background:#0d1d2d;border:1px solid #20354a;border-radius:18px;padding:22px;box-shadow:0 28px 80px rgba(0,0,0,.35)}
+.badge{display:inline-block;color:#49d3ff;font-size:.76rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+h1{margin:9px 0 10px;font-size:clamp(1.8rem,6vw,3rem)}p{color:#9cb1c3;line-height:1.6}
+label{display:block;margin-top:14px;color:#b9cedd;font-size:.82rem;font-weight:700}
+input{width:100%;margin-top:6px;background:#091623;border:1px solid #294157;color:#fff;border-radius:11px;padding:12px}
+button{width:100%;margin-top:18px;border:0;border-radius:11px;padding:13px;background:linear-gradient(135deg,#0b78ff,#20d9ff);color:#041019;font-weight:900;cursor:pointer}
+.note{margin-top:15px;padding:12px;border-radius:11px;background:#0a2034;color:#8faabd;font-size:.8rem}
+</style></head><body><main class="wrap"><section class="card">
+<div class="badge">Mandatory first-boot security</div>
+<h1>Secure RangeLink32 before using it.</h1>
+<p>The factory credentials are public setup credentials. Choose a new hotspot password and a different admin password before the normal dashboard is unlocked.</p>
+<form method="post" action="/setup/security">
+<label>RangeLink32 Wi-Fi name</label>
+<input name="ssid" maxlength="32" value=")HTML";
+  html += getApSsid();
+  html += R"HTML(" required>
+<label>New Wi-Fi password (8–63 characters)</label>
+<input name="ap_password" type="password" minlength="8" maxlength="63" autocomplete="new-password" required>
+<label>Admin username</label>
+<input name="admin_user" maxlength="32" value="admin" required>
+<label>New admin password (8–64 characters)</label>
+<input name="admin_password" type="password" minlength="8" maxlength="64" autocomplete="new-password" required>
+<button type="submit">Save Security Settings & Restart</button>
+</form>
+<div class="note">The Wi-Fi and admin passwords must be different and cannot remain the factory defaults. After restart, reconnect using your new Wi-Fi password and sign in at <b>192.168.50.1</b> with the new admin credentials.</div>
+</section></main></body></html>)HTML";
+
+  return html;
 }
 
 String renderPage() {
@@ -423,8 +472,62 @@ setInterval(loadClients,5000);
 
 void webAdminBegin() {
   server.on("/", HTTP_GET, []() {
-    if (!requireAdmin()) return;
-    server.send(200, "text/html; charset=utf-8", renderPage());
+    if (!requireAdmin(true)) return;
+
+    if (initialSetupRequired()) {
+      server.send(
+        200,
+        "text/html; charset=utf-8",
+        renderInitialSetupPage()
+      );
+      return;
+    }
+
+    server.send(
+      200,
+      "text/html; charset=utf-8",
+      renderPage()
+    );
+  });
+
+  server.on("/setup/security", HTTP_POST, []() {
+    if (!requireAdmin(true)) return;
+
+    if (!initialSetupRequired()) {
+      server.sendHeader("Location", "/");
+      server.send(303);
+      return;
+    }
+
+    const bool ok =
+      setInitialCredentials(
+        server.arg("ssid"),
+        server.arg("ap_password"),
+        server.arg("admin_user"),
+        server.arg("admin_password")
+      );
+
+    if (!ok) {
+      server.send(
+        400,
+        "text/plain",
+        "Invalid first-boot credentials. Use a 1-32 character SSID, 8-63 character Wi-Fi password, 1-32 character admin username, 8-64 character admin password, keep both passwords different, and do not reuse the factory passwords."
+      );
+      return;
+    }
+
+    appendEventLog(
+      "security",
+      "Mandatory first-boot credentials changed"
+    );
+
+    server.send(
+      200,
+      "text/html",
+      "<h2>Security setup complete.</h2><p>RangeLink32 is restarting. Reconnect with the new Wi-Fi password, then sign in at 192.168.50.1 using the new admin credentials.</p>"
+    );
+
+    scheduleRestart();
   });
 
   server.on("/api/networks", HTTP_GET, []() {

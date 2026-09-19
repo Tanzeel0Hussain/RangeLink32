@@ -42,8 +42,9 @@ It is designed to behave like a small router-style network appliance instead of 
 5. Enter the default RangeLink32 Wi-Fi password **`rangelink32`**.
 6. Open **`http://192.168.50.1`**.
 7. Log in with **username `admin`** and **admin password `changeme32`**.
-8. Change the **hotspot password** and **admin password** before normal use.
-9. Scan for your authorized upstream Wi-Fi network, enter its password, save the profile and connect.
+8. On first boot, RangeLink32 **requires** you to replace both factory passwords before the normal dashboard is unlocked.
+9. Reconnect with the new hotspot password and sign in using the new admin credentials.
+10. Scan for your authorized upstream Wi-Fi network, enter its password, save the profile and connect.
 
 ### Default First-Boot Credentials
 
@@ -55,7 +56,7 @@ It is designed to behave like a small router-style network appliance instead of 
 | Admin username | `admin` |
 | Admin password | `changeme32` |
 
-**The Wi-Fi password and admin password are intentionally different.** The firmware also rejects a new hotspot password if it matches the admin password, and rejects a new admin password if it matches the hotspot password.
+**The Wi-Fi password and admin password are intentionally different.** Factory credentials are setup-only: the normal dashboard stays locked until both factory passwords are replaced. The firmware also rejects a new hotspot password if it matches the admin password, and rejects a new admin password if it matches the hotspot password. Factory reset restores the setup credentials and therefore re-enables the mandatory first-boot security screen.
 
 ### Changing the two passwords
 

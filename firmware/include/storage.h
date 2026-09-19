@@ -11,6 +11,13 @@ String getAdminPassword();
 
 bool setApCredentials(const String& ssid, const String& password);
 bool setAdminCredentials(const String& username, const String& password);
+bool initialSetupRequired();
+bool setInitialCredentials(
+  const String& ssid,
+  const String& apPassword,
+  const String& adminUser,
+  const String& adminPassword
+);
 
 size_t loadWifiProfiles(WifiProfile* out, size_t maxCount);
 bool saveWifiProfile(const WifiProfile& profile);
