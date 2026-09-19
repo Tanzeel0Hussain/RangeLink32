@@ -1,6 +1,7 @@
 #include <Preferences.h>
 #include "storage.h"
 #include "config.h"
+#include "crypto_store.h"
 
 namespace {
 Preferences prefs;
@@ -29,7 +30,15 @@ String clientKey(size_t index, const char* suffix) {
 
 void writeWifiSlot(size_t index, const WifiProfile& profile) {
   prefs.putString(wifiKey(index, "s").c_str(), profile.ssid);
-  prefs.putString(wifiKey(index, "p").c_str(), profile.secret);
+  const String protectedSecret =
+    protectSecret(profile.secret);
+
+  if (protectedSecret.length() > 0) {
+    prefs.putString(
+      wifiKey(index, "p").c_str(),
+      protectedSecret
+    );
+  }
   prefs.putInt(wifiKey(index, "q").c_str(), profile.priority);
   prefs.putInt(wifiKey(index, "r").c_str(), profile.lastRssi);
   prefs.putBool(wifiKey(index, "e").c_str(), profile.enabled);
@@ -75,16 +84,82 @@ void storageBegin() {
     prefs.putString("ap_ssid", RangeLinkConfig::DEFAULT_AP_SSID);
   }
   if (!prefs.isKey("ap_pass")) {
-    prefs.putString("ap_pass", RangeLinkConfig::DEFAULT_AP_PASSWORD);
+    prefs.putString(
+      "ap_pass",
+      protectSecret(
+        RangeLinkConfig::DEFAULT_AP_PASSWORD
+      )
+    );
+  } else {
+    const String existing =
+      prefs.getString("ap_pass", "");
+
+    if (
+      existing.length() > 0 &&
+      !isProtectedSecret(existing)
+    ) {
+      prefs.putString(
+        "ap_pass",
+        protectSecret(existing)
+      );
+    }
   }
   if (!prefs.isKey("admin_user")) {
     prefs.putString("admin_user", RangeLinkConfig::DEFAULT_ADMIN_USER);
   }
   if (!prefs.isKey("admin_pass")) {
-    prefs.putString("admin_pass", RangeLinkConfig::DEFAULT_ADMIN_PASSWORD);
+    prefs.putString(
+      "admin_pass",
+      protectSecret(
+        RangeLinkConfig::DEFAULT_ADMIN_PASSWORD
+      )
+    );
+  } else {
+    const String existing =
+      prefs.getString("admin_pass", "");
+
+    if (
+      existing.length() > 0 &&
+      !isProtectedSecret(existing)
+    ) {
+      prefs.putString(
+        "admin_pass",
+        protectSecret(existing)
+      );
+    }
   }
   if (!prefs.isKey("tz_min")) {
     prefs.putInt("tz_min", 300);
+  }
+  if (!prefs.isKey("dns")) {
+    prefs.putString("dns", "");
+  }
+
+  // Migrate any legacy plaintext saved upstream credentials.
+  const uint8_t wifiCount =
+    prefs.getUChar("wifi_n", 0);
+
+  for (
+    uint8_t i = 0;
+    i < wifiCount &&
+    i < RangeLinkConfig::MAX_WIFI_PROFILES;
+    ++i
+  ) {
+    const String key =
+      wifiKey(i, "p");
+
+    const String existing =
+      prefs.getString(key.c_str(), "");
+
+    if (
+      existing.length() > 0 &&
+      !isProtectedSecret(existing)
+    ) {
+      prefs.putString(
+        key.c_str(),
+        protectSecret(existing)
+      );
+    }
   }
 }
 
@@ -93,7 +168,17 @@ String getApSsid() {
 }
 
 String getApPassword() {
-  return prefs.getString("ap_pass", RangeLinkConfig::DEFAULT_AP_PASSWORD);
+  const String stored =
+    prefs.getString("ap_pass", "");
+
+  const String plain =
+    unprotectSecret(stored);
+
+  return plain.length()
+    ? plain
+    : String(
+        RangeLinkConfig::DEFAULT_AP_PASSWORD
+      );
 }
 
 String getAdminUser() {
@@ -101,20 +186,52 @@ String getAdminUser() {
 }
 
 String getAdminPassword() {
-  return prefs.getString("admin_pass", RangeLinkConfig::DEFAULT_ADMIN_PASSWORD);
+  const String stored =
+    prefs.getString("admin_pass", "");
+
+  const String plain =
+    unprotectSecret(stored);
+
+  return plain.length()
+    ? plain
+    : String(
+        RangeLinkConfig::DEFAULT_ADMIN_PASSWORD
+      );
 }
 
 bool setApCredentials(const String& ssid, const String& password) {
   if (ssid.length() == 0 || password.length() < 8) return false;
+  const String protectedPassword =
+    protectSecret(password);
+
+  if (protectedPassword.length() == 0) {
+    return false;
+  }
+
   prefs.putString("ap_ssid", ssid);
-  prefs.putString("ap_pass", password);
+  prefs.putString(
+    "ap_pass",
+    protectedPassword
+  );
+
   return true;
 }
 
 bool setAdminCredentials(const String& username, const String& password) {
   if (username.length() == 0 || password.length() < 8) return false;
+  const String protectedPassword =
+    protectSecret(password);
+
+  if (protectedPassword.length() == 0) {
+    return false;
+  }
+
   prefs.putString("admin_user", username);
-  prefs.putString("admin_pass", password);
+  prefs.putString(
+    "admin_pass",
+    protectedPassword
+  );
+
   return true;
 }
 
@@ -135,7 +252,12 @@ size_t loadWifiProfiles(WifiProfile* out, size_t maxCount) {
     profile.ssid =
       prefs.getString(wifiKey(i, "s").c_str(), "");
     profile.secret =
-      prefs.getString(wifiKey(i, "p").c_str(), "");
+      unprotectSecret(
+        prefs.getString(
+          wifiKey(i, "p").c_str(),
+          ""
+        )
+      );
     profile.priority =
       prefs.getInt(wifiKey(i, "q").c_str(), 100);
     profile.lastRssi =
@@ -179,6 +301,30 @@ bool saveWifiProfile(const WifiProfile& profile) {
   prefs.putUChar("wifi_n", static_cast<uint8_t>(count + 1));
 
   return true;
+}
+
+bool getWifiProfileSecret(
+  const String& ssid,
+  String& secret
+) {
+  WifiProfile profiles[
+    RangeLinkConfig::MAX_WIFI_PROFILES
+  ];
+
+  const size_t count =
+    loadWifiProfiles(
+      profiles,
+      RangeLinkConfig::MAX_WIFI_PROFILES
+    );
+
+  for (size_t i = 0; i < count; ++i) {
+    if (profiles[i].ssid == ssid) {
+      secret = profiles[i].secret;
+      return true;
+    }
+  }
+
+  return false;
 }
 
 bool removeWifiProfile(const String& ssid) {
@@ -305,6 +451,23 @@ void setTimezoneOffsetMinutes(int minutes) {
   prefs.putInt("tz_min", minutes);
 }
 
+String getCustomDns() {
+  return prefs.getString("dns", "");
+}
+
+bool setCustomDns(const String& dns) {
+  if (dns.length() == 0) {
+    prefs.putString("dns", "");
+    return true;
+  }
+
+  IPAddress parsed;
+  if (!parsed.fromString(dns)) return false;
+
+  prefs.putString("dns", dns);
+  return true;
+}
+
 void appendEventLog(const String& type, const String& message) {
   uint8_t head = prefs.getUChar("log_head", 0);
   uint8_t count = prefs.getUChar("log_count", 0);
@@ -387,6 +550,200 @@ void clearEventLogs() {
 
   prefs.putUChar("log_head", 0);
   prefs.putUChar("log_count", 0);
+}
+
+String exportSafeSettings() {
+  String output;
+
+  output.reserve(4096);
+
+  output += "RANGELINK32_BACKUP_V1\n";
+  output += "ap_ssid=" + getApSsid() + "\n";
+  output += "admin_user=" + getAdminUser() + "\n";
+  output += "timezone_minutes=" +
+            String(
+              getTimezoneOffsetMinutes()
+            ) + "\n";
+  output += "custom_dns=" +
+            getCustomDns() + "\n";
+  output += "access_mode=" +
+            String(
+              getStoredAccessMode()
+            ) + "\n";
+
+  ClientRecord clients[
+    RangeLinkConfig::MAX_CLIENT_RECORDS
+  ];
+
+  const size_t count =
+    loadClientPolicies(
+      clients,
+      RangeLinkConfig::MAX_CLIENT_RECORDS
+    );
+
+  for (size_t i = 0; i < count; ++i) {
+    String safeName = clients[i].hostname;
+    safeName.replace("\n", " ");
+    safeName.replace("\r", " ");
+    safeName.replace("|", "/");
+
+    output +=
+      "client=" +
+      clients[i].mac + "|" +
+      safeName + "|" +
+      String(clients[i].approved ? 1 : 0) + "|" +
+      String(clients[i].blocked ? 1 : 0) + "|" +
+      String(
+        static_cast<unsigned long long>(
+          clients[i].dailyQuotaBytes
+        )
+      ) + "|" +
+      String(clients[i].bandwidthKbps) + "|" +
+      String(
+        clients[i].scheduleEnabled
+          ? 1
+          : 0
+      ) + "|" +
+      String(clients[i].scheduleStartHour) + "|" +
+      String(clients[i].scheduleEndHour) +
+      "\n";
+  }
+
+  output +=
+    "# Wi-Fi passwords and admin password are intentionally not exported.\n";
+
+  return output;
+}
+
+bool importSafeSettings(
+  const String& text
+) {
+  if (
+    !text.startsWith(
+      "RANGELINK32_BACKUP_V1"
+    )
+  ) {
+    return false;
+  }
+
+  int cursor = 0;
+
+  while (cursor < text.length()) {
+    int end = text.indexOf('\n', cursor);
+
+    if (end < 0) end = text.length();
+
+    String line =
+      text.substring(cursor, end);
+
+    line.trim();
+    cursor = end + 1;
+
+    if (
+      line.length() == 0 ||
+      line.startsWith("#") ||
+      line ==
+        "RANGELINK32_BACKUP_V1"
+    ) {
+      continue;
+    }
+
+    const int eq = line.indexOf('=');
+    if (eq < 0) continue;
+
+    const String key =
+      line.substring(0, eq);
+
+    const String value =
+      line.substring(eq + 1);
+
+    if (key == "ap_ssid") {
+      if (value.length()) {
+        prefs.putString(
+          "ap_ssid",
+          value.substring(0, 32)
+        );
+      }
+    } else if (key == "admin_user") {
+      if (value.length()) {
+        prefs.putString(
+          "admin_user",
+          value.substring(0, 32)
+        );
+      }
+    } else if (
+      key == "timezone_minutes"
+    ) {
+      setTimezoneOffsetMinutes(
+        value.toInt()
+      );
+    } else if (key == "custom_dns") {
+      setCustomDns(value);
+    } else if (key == "access_mode") {
+      setStoredAccessMode(
+        static_cast<uint8_t>(
+          value.toInt() ? 1 : 0
+        )
+      );
+    } else if (key == "client") {
+      String parts[9];
+      int part = 0;
+      int start = 0;
+
+      for (
+        int i = 0;
+        i <= value.length() &&
+        part < 9;
+        ++i
+      ) {
+        if (
+          i == value.length() ||
+          value[i] == '|'
+        ) {
+          parts[part++] =
+            value.substring(start, i);
+          start = i + 1;
+        }
+      }
+
+      if (
+        part >= 9 &&
+        parts[0].length() == 17
+      ) {
+        ClientRecord record;
+        record.mac = parts[0];
+        record.hostname = parts[1];
+        record.approved =
+          parts[2].toInt() != 0;
+        record.blocked =
+          parts[3].toInt() != 0;
+        record.dailyQuotaBytes =
+          strtoull(
+            parts[4].c_str(),
+            nullptr,
+            10
+          );
+        record.bandwidthKbps =
+          static_cast<uint32_t>(
+            parts[5].toInt()
+          );
+        record.scheduleEnabled =
+          parts[6].toInt() != 0;
+        record.scheduleStartHour =
+          static_cast<uint8_t>(
+            parts[7].toInt()
+          );
+        record.scheduleEndHour =
+          static_cast<uint8_t>(
+            parts[8].toInt()
+          );
+
+        saveClientPolicy(record);
+      }
+    }
+  }
+
+  return true;
 }
 
 void factoryResetStorage() {
