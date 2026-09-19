@@ -545,6 +545,11 @@ async function loadProfiles(){
       </div>
       <div class="actions">
         <form method="post" action="/profile/connect"><input type="hidden" name="ssid" value="${esc(p.ssid)}"><button class="btn secondary">Connect</button></form>
+        <form method="post" action="/profile/priority">
+          <input type="hidden" name="ssid" value="${esc(p.ssid)}">
+          <input name="priority" type="number" min="1" max="9999" value="${p.priority}" style="width:92px" title="Lower number = higher failover priority">
+          <button class="btn secondary">Save Priority</button>
+        </form>
         <form method="post" action="/profile/reveal" target="_blank">
           <input type="hidden" name="ssid" value="${esc(p.ssid)}">
           <input name="admin_password" type="password" placeholder="Admin password" required>
@@ -712,6 +717,37 @@ void webAdminBegin() {
     if (!requireAdmin()) return;
     const bool ok = connectSavedProfile(server.arg("ssid"));
     server.sendHeader("Location", ok ? "/" : "/?error=profile");
+    server.send(303);
+  });
+
+
+  server.on("/profile/priority", HTTP_POST, []() {
+    if (!requireAdmin()) return;
+
+    const int priority =
+      server.arg("priority").toInt();
+
+    if (
+      !setWifiProfilePriority(
+        server.arg("ssid"),
+        priority
+      )
+    ) {
+      server.send(
+        400,
+        "text/plain",
+        "Priority must be between 1 and 9999 for an existing saved network."
+      );
+      return;
+    }
+
+    appendEventLog(
+      "profile",
+      "Updated saved-network priority for " +
+      server.arg("ssid")
+    );
+
+    server.sendHeader("Location", "/");
     server.send(303);
   });
 

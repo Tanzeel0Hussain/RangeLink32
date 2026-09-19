@@ -22,6 +22,10 @@ bool setInitialCredentials(
 size_t loadWifiProfiles(WifiProfile* out, size_t maxCount);
 bool saveWifiProfile(const WifiProfile& profile);
 bool removeWifiProfile(const String& ssid);
+bool setWifiProfilePriority(
+  const String& ssid,
+  int priority
+);
 bool getWifiProfileSecret(const String& ssid, String& secret);
 bool updateWifiProfileUsage(
   const String& ssid,

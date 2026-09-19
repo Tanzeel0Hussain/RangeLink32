@@ -494,6 +494,44 @@ bool updateWifiProfileUsage(
   return false;
 }
 
+bool setWifiProfilePriority(
+  const String& ssid,
+  int priority
+) {
+  if (
+    ssid.length() == 0 ||
+    priority < 1 ||
+    priority > 9999
+  ) {
+    return false;
+  }
+
+  const size_t count =
+    prefs.getUChar("wifi_n", 0);
+
+  for (
+    size_t i = 0;
+    i < count &&
+    i < RangeLinkConfig::MAX_WIFI_PROFILES;
+    ++i
+  ) {
+    if (
+      prefs.getString(
+        wifiKey(i, "s").c_str(),
+        ""
+      ) == ssid
+    ) {
+      prefs.putInt(
+        wifiKey(i, "q").c_str(),
+        priority
+      );
+      return true;
+    }
+  }
+
+  return false;
+}
+
 bool removeWifiProfile(const String& ssid) {
   WifiProfile profiles[RangeLinkConfig::MAX_WIFI_PROFILES];
   size_t count =
