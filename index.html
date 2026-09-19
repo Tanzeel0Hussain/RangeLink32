@@ -82,18 +82,68 @@
   </div>
 </section>
 
-<section id="gallery" class="section">
+<section id="gallery" class="section gallery-section">
   <div class="container">
-    <div class="section-head reveal"><div><div class="kicker">Project gallery</div><h2>Built for 6–8 real screenshots.</h2></div><p>The gallery uses an auto-fit responsive grid, so when your project images arrive it will automatically look balanced on desktop, tablet and mobile—even if the final count changes.</p></div>
-    <div class="gallery">
-      <article class="card slot reveal"><span class="slot-number">01</span><div class="placeholder">Reserved for project screenshot</div><b>Dashboard Overview</b><small>Main status and Internet health</small></article>
-      <article class="card slot reveal"><span class="slot-number">02</span><div class="placeholder">Reserved for project screenshot</div><b>Mobile View</b><small>Phone-sized admin interface</small></article>
-      <article class="card slot reveal"><span class="slot-number">03</span><div class="placeholder">Reserved for project screenshot</div><b>Wi-Fi Scanner</b><small>Nearby networks and signal</small></article>
-      <article class="card slot reveal"><span class="slot-number">04</span><div class="placeholder">Reserved for project screenshot</div><b>Client Manager</b><small>MAC/IP device inventory</small></article>
-      <article class="card slot reveal"><span class="slot-number">05</span><div class="placeholder">Reserved for project screenshot</div><b>Speed & Data Limits</b><small>Daily/monthly quota controls</small></article>
-      <article class="card slot reveal"><span class="slot-number">06</span><div class="placeholder">Reserved for project screenshot</div><b>Access Control</b><small>Allowlist and block policies</small></article>
-      <article class="card slot reveal"><span class="slot-number">07</span><div class="placeholder">Reserved for project screenshot</div><b>Saved Wi-Fi Profiles</b><small>Reconnect and failover</small></article>
-      <article class="card slot reveal"><span class="slot-number">08</span><div class="placeholder">Reserved for project screenshot</div><b>ESP32U Hardware</b><small>Board and external antenna</small></article>
+    <div class="section-head reveal">
+      <div>
+        <div class="kicker">Interactive project gallery</div>
+        <h2>See RangeLink32 in action.</h2>
+      </div>
+      <p>Eight real project visuals now play automatically in a curved 3D showcase. Hover to pause, swipe on mobile, or select any preview below.</p>
+    </div>
+
+    <div class="gallery-showcase reveal" aria-label="RangeLink32 project gallery">
+      <div class="gallery-stage" tabindex="0">
+        <figure class="gallery-slide active" data-index="0">
+          <img src="assets/01-dashboard-overview.webp" alt="RangeLink32 dashboard overview showing network status, connected devices, usage and system health">
+          <figcaption><span>01</span><div><b>Dashboard Overview</b><small>Main status, Internet health, devices and system visibility</small></div></figcaption>
+        </figure>
+        <figure class="gallery-slide" data-index="1">
+          <img loading="lazy" src="assets/02-mobile-responsive-view.webp" alt="RangeLink32 responsive mobile admin dashboard">
+          <figcaption><span>02</span><div><b>Mobile Responsive View</b><small>Full local admin experience optimized for phones</small></div></figcaption>
+        </figure>
+        <figure class="gallery-slide" data-index="2">
+          <img loading="lazy" src="assets/03-wifi-scanner.webp" alt="RangeLink32 Wi-Fi scanner and network selection screen">
+          <figcaption><span>03</span><div><b>Wi-Fi Scanner</b><small>Nearby SSIDs, RSSI, channel, security and connection controls</small></div></figcaption>
+        </figure>
+        <figure class="gallery-slide" data-index="3">
+          <img loading="lazy" src="assets/04-client-manager.webp" alt="RangeLink32 connected device manager">
+          <figcaption><span>04</span><div><b>Client Manager</b><small>MAC/IP inventory, live usage, status and device actions</small></div></figcaption>
+        </figure>
+        <figure class="gallery-slide" data-index="4">
+          <img loading="lazy" src="assets/05-speed-data-limits.webp" alt="RangeLink32 per-device speed and data limit controls">
+          <figcaption><span>05</span><div><b>Speed & Data Limits</b><small>Per-device speed cap plus daily and monthly MB/GB quotas</small></div></figcaption>
+        </figure>
+        <figure class="gallery-slide" data-index="5">
+          <img loading="lazy" src="assets/06-access-control.webp" alt="RangeLink32 MAC allowlist blocklist and guest access controls">
+          <figcaption><span>06</span><div><b>Access Control</b><small>Allowlist, blocklist, guest permissions and time schedules</small></div></figcaption>
+        </figure>
+        <figure class="gallery-slide" data-index="6">
+          <img loading="lazy" src="assets/07-wifi-failover.webp" alt="RangeLink32 saved Wi-Fi profiles and automatic failover screen">
+          <figcaption><span>07</span><div><b>Wi-Fi Profiles & Failover</b><small>Saved networks, priority, reconnect history and automatic failover</small></div></figcaption>
+        </figure>
+        <figure class="gallery-slide" data-index="7">
+          <img loading="lazy" src="assets/08-esp32u-hardware.webp" alt="RangeLink32 ESP32U hardware with external 2.4 GHz antenna">
+          <figcaption><span>08</span><div><b>ESP32U Hardware</b><small>ESP32U board, external antenna and USB power/data setup</small></div></figcaption>
+        </figure>
+
+        <button class="gallery-arrow prev" type="button" aria-label="Previous image">‹</button>
+        <button class="gallery-arrow next" type="button" aria-label="Next image">›</button>
+        <div class="gallery-progress" aria-hidden="true"><i></i></div>
+      </div>
+
+      <div class="gallery-rail" aria-label="Gallery previews">
+        <button class="gallery-thumb active" type="button" data-index="0"><img src="assets/01-dashboard-overview.webp" alt=""><span>Dashboard</span></button>
+        <button class="gallery-thumb" type="button" data-index="1"><img loading="lazy" src="assets/02-mobile-responsive-view.webp" alt=""><span>Mobile</span></button>
+        <button class="gallery-thumb" type="button" data-index="2"><img loading="lazy" src="assets/03-wifi-scanner.webp" alt=""><span>Scanner</span></button>
+        <button class="gallery-thumb" type="button" data-index="3"><img loading="lazy" src="assets/04-client-manager.webp" alt=""><span>Devices</span></button>
+        <button class="gallery-thumb" type="button" data-index="4"><img loading="lazy" src="assets/05-speed-data-limits.webp" alt=""><span>Limits</span></button>
+        <button class="gallery-thumb" type="button" data-index="5"><img loading="lazy" src="assets/06-access-control.webp" alt=""><span>Access</span></button>
+        <button class="gallery-thumb" type="button" data-index="6"><img loading="lazy" src="assets/07-wifi-failover.webp" alt=""><span>Failover</span></button>
+        <button class="gallery-thumb" type="button" data-index="7"><img loading="lazy" src="assets/08-esp32u-hardware.webp" alt=""><span>Hardware</span></button>
+      </div>
+
+      <div class="gallery-counter"><strong id="gallery-current">01</strong><span>/ 08</span><small>Auto-play · 3D transitions · touch swipe</small></div>
     </div>
   </div>
 </section>
