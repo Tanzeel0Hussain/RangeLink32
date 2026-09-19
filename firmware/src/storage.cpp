@@ -263,7 +263,14 @@ String getAdminPassword() {
 }
 
 bool setApCredentials(const String& ssid, const String& password) {
-  if (ssid.length() == 0 || password.length() < 8) return false;
+  if (
+    ssid.length() == 0 ||
+    ssid.length() > 32 ||
+    password.length() < 8 ||
+    password.length() > 63
+  ) {
+    return false;
+  }
 
   // Keep the Wi-Fi access password separate from the admin login password.
   if (password == getAdminPassword()) return false;
@@ -285,7 +292,14 @@ bool setApCredentials(const String& ssid, const String& password) {
 }
 
 bool setAdminCredentials(const String& username, const String& password) {
-  if (username.length() == 0 || password.length() < 8) return false;
+  if (
+    username.length() == 0 ||
+    username.length() > 32 ||
+    password.length() < 8 ||
+    password.length() > 64
+  ) {
+    return false;
+  }
 
   // Do not allow the management password to match the Wi-Fi password.
   if (password == getApPassword()) return false;
@@ -413,7 +427,8 @@ bool saveWifiProfile(const WifiProfile& profile) {
     profile.ssid.length() == 0 ||
     profile.ssid.length() > 32 ||
     (!profile.openNetwork &&
-      profile.secret.length() < 8)
+      (profile.secret.length() < 8 ||
+       profile.secret.length() > 63))
   ) {
     return false;
   }
@@ -898,6 +913,16 @@ String exportSafeSettings() {
 bool importSafeSettings(
   const String& text
 ) {
+  constexpr size_t MAX_BACKUP_BYTES = 16384;
+  constexpr size_t MAX_BACKUP_LINE = 512;
+
+  if (
+    text.length() == 0 ||
+    text.length() > MAX_BACKUP_BYTES
+  ) {
+    return false;
+  }
+
   const bool backupV1 =
     text.startsWith("RANGELINK32_BACKUP_V1");
   const bool backupV2 =
@@ -913,6 +938,13 @@ bool importSafeSettings(
     int end = text.indexOf('\n', cursor);
 
     if (end < 0) end = text.length();
+
+    if (
+      end - cursor >
+      static_cast<int>(MAX_BACKUP_LINE)
+    ) {
+      return false;
+    }
 
     String line =
       text.substring(cursor, end);

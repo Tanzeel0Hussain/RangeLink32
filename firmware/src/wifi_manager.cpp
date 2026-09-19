@@ -594,7 +594,9 @@ bool connectUpstream(
   if (
     ssid.length() == 0 ||
     ssid.length() > 32 ||
-    (!openNetwork && password.length() < 8)
+    (!openNetwork &&
+      (password.length() < 8 ||
+       password.length() > 63))
   ) {
     return false;
   }

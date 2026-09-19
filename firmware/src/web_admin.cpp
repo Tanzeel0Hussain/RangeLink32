@@ -271,7 +271,7 @@ small{color:var(--muted);line-height:1.5}@media(max-width:850px){.grid{grid-temp
 <option value="secured">Secured network</option>
 <option value="open">Open network (no password)</option>
 </select>
-<input id="upstream-password" name="password" type="password" placeholder="Wi-Fi password" minlength="8">
+<input id="upstream-password" name="password" type="password" placeholder="Wi-Fi password" minlength="8" maxlength="63">
 <button class="btn" type="submit">Connect & Save</button>
 </form>
 </section>
@@ -286,7 +286,7 @@ small{color:var(--muted);line-height:1.5}@media(max-width:850px){.grid{grid-temp
 <h3>RangeLink32 Hotspot Settings</h3>
 <form method="post" action="/settings/ap">
 <input name="ssid" value=")HTML" + getApSsid() + R"HTML(" placeholder="RangeLink32 Wi-Fi name" required>
-<input name="password" type="password" placeholder="New hotspot password (8+ characters)" minlength="8" required>
+<input name="password" type="password" placeholder="New hotspot password (8–63 characters)" minlength="8" maxlength="63" required>
 <button class="btn" type="submit">Save & Restart</button>
 </form>
 <p><small>Changing the hotspot settings restarts the ESP32. Reconnect using the new SSID/password and open <b>192.168.50.1</b>.</small></p>
@@ -319,8 +319,8 @@ small{color:var(--muted);line-height:1.5}@media(max-width:850px){.grid{grid-temp
 <section class="card">
 <h3>Admin Login Settings</h3>
 <form method="post" action="/settings/admin">
-<input name="username" value=")HTML" + getAdminUser() + R"HTML(" placeholder="Admin username" required>
-<input name="password" type="password" placeholder="New admin password (8+ characters)" minlength="8" required>
+<input name="username" maxlength="32" value=")HTML" + getAdminUser() + R"HTML(" placeholder="Admin username" required>
+<input name="password" type="password" placeholder="New admin password (8–64 characters)" minlength="8" maxlength="64" required>
 <button class="btn" type="submit">Change Admin Login</button>
 </form>
 </section>
@@ -330,7 +330,7 @@ small{color:var(--muted);line-height:1.5}@media(max-width:850px){.grid{grid-temp
 <div class="actions"><a class="btn secondary" href="/backup">Download Safe Backup</a></div>
 <p><small>The backup includes non-secret settings and device policies. Wi-Fi passwords and the admin password are intentionally excluded.</small></p>
 <form method="post" action="/restore">
-<textarea name="backup" rows="8" style="width:100%;background:#091623;border:1px solid var(--line);color:var(--text);border-radius:10px;padding:11px" placeholder="Paste a RangeLink32 backup here"></textarea>
+<textarea name="backup" rows="8" maxlength="16384" style="width:100%;background:#091623;border:1px solid var(--line);color:var(--text);border-radius:10px;padding:11px" placeholder="Paste a RangeLink32 backup here"></textarea>
 <button class="btn" type="submit">Restore & Restart</button>
 </form>
 </section>
