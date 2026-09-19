@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#07111d">
+  <title>RangeLink32</title>
+  <style>
+    :root{--bg:#07111d;--panel:#0d1d2d;--line:#21384d;--text:#eff8ff;--muted:#93aabd;--accent:#49d3ff;--green:#46d69a}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;color:var(--text);background:
+      radial-gradient(circle at 15% 10%,rgba(73,211,255,.16),transparent 28%),
+      radial-gradient(circle at 85% 10%,rgba(70,214,154,.10),transparent 24%),var(--bg)}
+    .wrap{max-width:1120px;margin:auto;padding:28px 18px 64px}
+    nav{display:flex;justify-content:space-between;align-items:center;gap:14px}
+    .brand{font-weight:900;letter-spacing:.02em}.pill{display:inline-block;padding:7px 10px;border:1px solid var(--line);border-radius:999px;color:var(--muted);font-size:.78rem}
+    .hero{padding:78px 0 46px;max-width:850px}.eyebrow{color:var(--accent);font-weight:800;text-transform:uppercase;letter-spacing:.1em;font-size:.76rem}
+    h1{font-size:clamp(2.6rem,8vw,5.8rem);line-height:.94;margin:14px 0 20px;letter-spacing:-.05em}
+    .lead{font-size:clamp(1rem,2.1vw,1.22rem);line-height:1.7;color:var(--muted);max-width:760px}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:28px}.btn{padding:12px 16px;border-radius:12px;text-decoration:none;font-weight:850;border:1px solid var(--line);color:var(--text)}
+    .btn.primary{background:var(--accent);color:#031018;border-color:transparent}
+    .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:24px}
+    .card{background:rgba(13,29,45,.88);border:1px solid var(--line);border-radius:18px;padding:18px}.card b{display:block;margin-bottom:7px}.card span{color:var(--muted);font-size:.9rem;line-height:1.5}
+    .section{margin-top:42px}.section h2{font-size:1.4rem;margin-bottom:10px}.status{color:var(--green);font-weight:800}
+    code{background:#091827;border:1px solid var(--line);padding:3px 7px;border-radius:8px;color:#cdefff}
+    footer{margin-top:52px;color:var(--muted);font-size:.85rem}
+    @media(max-width:850px){.grid{grid-template-columns:1fr 1fr}}
+    @media(max-width:480px){.grid{grid-template-columns:1fr}.hero{padding-top:56px}}
+  </style>
+</head>
+<body>
+<main class="wrap">
+  <nav>
+    <div class="brand">RangeLink32</div>
+    <span class="pill">P4 · Active Development</span>
+  </nav>
+
+  <section class="hero">
+    <div class="eyebrow">ESP32U + External Antenna</div>
+    <h1>Extend Wi-Fi.<br>Manage every connection.</h1>
+    <p class="lead">RangeLink32 is a smart ESP32 Wi-Fi extender and managed gateway project with automatic upstream recovery, a permanent local admin network, client access controls, traffic accounting, failover and a router-style dashboard.</p>
+    <div class="actions">
+      <a class="btn primary" href="https://github.com/Tanzeel0Hussain/RangeLink32">View Source</a>
+      <a class="btn" href="https://github.com/Tanzeel0Hussain/RangeLink32/actions">Build Status</a>
+    </div>
+  </section>
+
+  <section class="grid">
+    <div class="card"><b>Auto Reconnect</b><span>Reconnects to the configured upstream Wi-Fi with increasing retry delays.</span></div>
+    <div class="card"><b>Managed Gateway</b><span>Permanent local management access at <code>192.168.50.1</code>.</span></div>
+    <div class="card"><b>Client Control</b><span>MAC-based allow/block policies and per-device Internet controls are planned.</span></div>
+    <div class="card"><b>Traffic Intelligence</b><span>Per-device and per-network usage accounting is part of the target design.</span></div>
+  </section>
+
+  <section class="section card">
+    <h2>Current Development Status</h2>
+    <p><span class="status">● Firmware build passing</span></p>
+    <p class="lead">The firmware is modularized into Wi-Fi management, storage, routing, access control and web-admin components. NAT/NAPT forwarding, saved Wi-Fi profiles, failover and client accounting are the next implementation milestones and will be hardware-verified before being marked complete.</p>
+  </section>
+
+  <footer>RangeLink32 · Smart ESP32 Wi-Fi Extender & Managed Gateway</footer>
+</main>
+</body>
+</html>
