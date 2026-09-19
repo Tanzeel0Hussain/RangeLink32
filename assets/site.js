@@ -6,13 +6,19 @@ document.querySelectorAll('.nav-links a').forEach(a=>a.addEventListener('click',
 
 const visual=document.querySelector('.visual-card');
 if(visual && matchMedia('(pointer:fine)').matches){
+  visual.addEventListener('pointerenter',()=>{
+    visual.classList.add('is-interacting');
+  });
   visual.addEventListener('pointermove',e=>{
     const r=visual.getBoundingClientRect();
     const x=(e.clientX-r.left)/r.width-.5;
     const y=(e.clientY-r.top)/r.height-.5;
-    visual.style.transform=`rotateX(${-y*7}deg) rotateY(${x*9}deg) translateZ(0)`;
+    visual.style.transform=`perspective(1300px) translateY(-4px) rotateX(${-y*10}deg) rotateY(${x*12}deg) scale(1.01)`;
   });
-  visual.addEventListener('pointerleave',()=>visual.style.transform='rotateX(0deg) rotateY(0deg)');
+  visual.addEventListener('pointerleave',()=>{
+    visual.style.transform='';
+    visual.classList.remove('is-interacting');
+  });
 }
 const observer=new IntersectionObserver(entries=>{
   entries.forEach(e=>{if(e.isIntersecting)e.target.classList.add('in')});
