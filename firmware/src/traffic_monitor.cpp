@@ -6,6 +6,10 @@ extern "C" {
 #include "lwip/netif.h"
 #include "lwip/pbuf.h"
 #include "lwip/prot/ip4.h"
+
+struct netif* esp_netif_get_netif_impl(
+  esp_netif_t* esp_netif
+);
 }
 
 #include "traffic_monitor.h"
@@ -260,10 +264,6 @@ void trafficMonitorBegin() {
     Serial.println("RangeLink32 traffic monitor: AP netif not found");
     return;
   }
-
-  extern struct netif* esp_netif_get_netif_impl(
-    esp_netif_t* esp_netif
-  );
 
   apNetif = esp_netif_get_netif_impl(apHandle);
 
