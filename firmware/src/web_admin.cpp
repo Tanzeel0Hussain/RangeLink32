@@ -186,7 +186,7 @@ String renderPage() {
   const SystemState s = getSystemState();
 
   String html;
-  html.reserve(14000);
+  html.reserve(30000);
 
   html += R"HTML(<!doctype html><html><head>
 <meta charset="utf-8">
@@ -1434,30 +1434,32 @@ void webAdminBegin() {
     const int quiet = 4;
     const int viewSize = qr.size + quiet * 2;
 
+    String path;
+    path.reserve(15000);
+
+    for (uint8_t y = 0; y < qr.size; ++y) {
+      for (uint8_t x = 0; x < qr.size; ++x) {
+        if (qrcode_getModule(&qr, x, y)) {
+          path += "M";
+          path += String(x + quiet);
+          path += " ";
+          path += String(y + quiet);
+          path += "h1v1h-1z";
+        }
+      }
+    }
+
     String svg;
-    svg.reserve(12000);
+    svg.reserve(path.length() + 220);
 
     svg =
       "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 " +
       String(viewSize) +
       " " +
       String(viewSize) +
-      "' shape-rendering='crispEdges'><rect width='100%' height='100%' fill='white'/>";
-
-    for (uint8_t y = 0; y < qr.size; ++y) {
-      for (uint8_t x = 0; x < qr.size; ++x) {
-        if (qrcode_getModule(&qr, x, y)) {
-          svg +=
-            "<rect x='" +
-            String(x + quiet) +
-            "' y='" +
-            String(y + quiet) +
-            "' width='1' height='1' fill='black'/>";
-        }
-      }
-    }
-
-    svg += "</svg>";
+      "' shape-rendering='crispEdges'><rect width='100%' height='100%' fill='white'/><path fill='black' d='" +
+      path +
+      "'/></svg>";
 
     server.send(
       200,

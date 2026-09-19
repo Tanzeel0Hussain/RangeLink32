@@ -874,7 +874,12 @@ String getClientTableJson() {
     refreshClients();
   }
 
-  String json = "[";
+  String json;
+  json.reserve(
+    256 +
+    policyCount * 430
+  );
+  json = "[";
 
   for (size_t p = 0; p < policyCount; ++p) {
     if (p) json += ",";
