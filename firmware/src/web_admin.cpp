@@ -232,8 +232,14 @@ async function loadNetworks(){
   box.innerHTML=data.length?data.map(n=>`
     <div class="row">
       <div><b>${esc(n.ssid||'<hidden>')}</b><div class="meta">${n.rssi} dBm · CH ${n.channel} · ${n.secure?'Secured':'Open'}</div></div>
-      <button class="btn secondary" onclick='pickSsid(${JSON.stringify(n.ssid)})'>Select</button>
+      <button class="btn secondary pick-network" type="button" data-ssid="${esc(n.ssid)}">Select</button>
     </div>`).join(''):'<small>No networks found.</small>';
+
+  box.querySelectorAll('.pick-network').forEach(button=>{
+    button.addEventListener('click',()=>{
+      pickSsid(button.dataset.ssid||'');
+    });
+  });
 }
 
 function bytes(v){
