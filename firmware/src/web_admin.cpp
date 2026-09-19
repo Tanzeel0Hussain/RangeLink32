@@ -7,6 +7,21 @@
 
 namespace {
 WebServer server(80);
+bool restartPending = false;
+unsigned long restartRequestedAt = 0;
+
+String placementLabel(int32_t rssi) {
+  if (rssi == -127) return "No upstream signal";
+  if (rssi >= -60) return "Excellent position";
+  if (rssi >= -70) return "Good position";
+  if (rssi >= -80) return "Weak — move closer";
+  return "Very weak — move closer";
+}
+
+void scheduleRestart() {
+  restartPending = true;
+  restartRequestedAt = millis();
+}
 
 bool requireAdmin() {
   const String user = getAdminUser();
@@ -100,9 +115,40 @@ small{color:var(--muted);line-height:1.5}@media(max-width:850px){.grid{grid-temp
 </section>
 
 <section class="card">
-<h3>Management</h3>
-<p><small>The local management AP stays available at <b>192.168.50.1</b> even if upstream Wi-Fi is unavailable.</small></p>
+<h3>Smart Placement Assistant</h3>
+<p><b>)HTML" + placementLabel(s.upstreamRssi) + R"HTML(</b></p>
+<p><small>Current upstream signal: )HTML" + String(s.upstreamRssi) + R"HTML( dBm. Place RangeLink32 where it still receives a stable router signal while remaining closer to the area you want to cover.</small></p>
+</section>
+
+<section class="card">
+<h3>RangeLink32 Hotspot Settings</h3>
+<form method="post" action="/settings/ap">
+<input name="ssid" value=")HTML" + getApSsid() + R"HTML(" placeholder="RangeLink32 Wi-Fi name" required>
+<input name="password" type="password" placeholder="New hotspot password (8+ characters)" minlength="8" required>
+<button class="btn" type="submit">Save & Restart</button>
+</form>
+<p><small>Changing the hotspot settings restarts the ESP32. Reconnect using the new SSID/password and open <b>192.168.50.1</b>.</small></p>
+</section>
+
+<section class="card">
+<h3>Admin Login Settings</h3>
+<form method="post" action="/settings/admin">
+<input name="username" value=")HTML" + getAdminUser() + R"HTML(" placeholder="Admin username" required>
+<input name="password" type="password" placeholder="New admin password (8+ characters)" minlength="8" required>
+<button class="btn" type="submit">Change Admin Login</button>
+</form>
+</section>
+
+<section class="card">
+<h3>System & Recovery</h3>
+<div class="row"><div><b>Management IP</b><div class="meta">192.168.50.1</div></div></div>
+<div class="row"><div><b>Chip</b><div class="meta">)HTML" + String(ESP.getChipModel()) + R"HTML( · Free heap )HTML" + String(ESP.getFreeHeap()/1024) + R"HTML( KB</div></div></div>
+<div class="row"><div><b>Uptime</b><div class="meta">)HTML" + String(millis()/1000) + R"HTML( seconds</div></div></div>
+<div class="actions">
 <a class="btn secondary" href="/reconnect">Reconnect upstream</a>
+<form method="post" action="/system/restart"><button class="btn secondary">Restart ESP32</button></form>
+<form method="post" action="/system/factory-reset" onsubmit="return confirm('Erase RangeLink32 settings and restart?')"><button class="btn danger">Factory Reset</button></form>
+</div>
 </section>
 
 <script>
@@ -275,6 +321,65 @@ void webAdminBegin() {
     server.send(303);
   });
 
+  server.on("/settings/ap", HTTP_POST, []() {
+    if (!requireAdmin()) return;
+
+    const bool ok = setApCredentials(
+      server.arg("ssid"),
+      server.arg("password")
+    );
+
+    if (!ok) {
+      server.send(400, "text/plain", "Invalid hotspot settings.");
+      return;
+    }
+
+    server.send(
+      200,
+      "text/html",
+      "<h2>RangeLink32 settings saved.</h2><p>The ESP32 is restarting. Reconnect to the new Wi-Fi and open 192.168.50.1.</p>"
+    );
+    scheduleRestart();
+  });
+
+  server.on("/settings/admin", HTTP_POST, []() {
+    if (!requireAdmin()) return;
+
+    const bool ok = setAdminCredentials(
+      server.arg("username"),
+      server.arg("password")
+    );
+
+    if (!ok) {
+      server.send(400, "text/plain", "Invalid admin settings.");
+      return;
+    }
+
+    server.send(
+      200,
+      "text/html",
+      "<h2>Admin login updated.</h2><p>RangeLink32 is restarting. Sign in with the new credentials.</p>"
+    );
+    scheduleRestart();
+  });
+
+  server.on("/system/restart", HTTP_POST, []() {
+    if (!requireAdmin()) return;
+    server.send(200, "text/html", "<h2>RangeLink32 is restarting…</h2>");
+    scheduleRestart();
+  });
+
+  server.on("/system/factory-reset", HTTP_POST, []() {
+    if (!requireAdmin()) return;
+    factoryResetStorage();
+    server.send(
+      200,
+      "text/html",
+      "<h2>Factory reset complete.</h2><p>RangeLink32 is restarting with default development settings.</p>"
+    );
+    scheduleRestart();
+  });
+
   server.on("/reconnect", HTTP_GET, []() {
     if (!requireAdmin()) return;
     reconnectUpstream();
@@ -295,4 +400,8 @@ void webAdminBegin() {
 
 void webAdminLoop() {
   server.handleClient();
+
+  if (restartPending && millis() - restartRequestedAt >= 1000) {
+    ESP.restart();
+  }
 }
