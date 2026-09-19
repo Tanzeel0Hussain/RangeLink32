@@ -9,6 +9,10 @@ String wifiKey(size_t index, const char* suffix) {
   return "w" + String(index) + suffix;
 }
 
+String clientKey(size_t index, const char* suffix) {
+  return "c" + String(index) + suffix;
+}
+
 void writeWifiSlot(size_t index, const WifiProfile& profile) {
   prefs.putString(wifiKey(index, "s").c_str(), profile.ssid);
   prefs.putString(wifiKey(index, "p").c_str(), profile.secret);
@@ -23,6 +27,12 @@ void clearWifiSlot(size_t index) {
   prefs.remove(wifiKey(index, "q").c_str());
   prefs.remove(wifiKey(index, "r").c_str());
   prefs.remove(wifiKey(index, "e").c_str());
+}
+
+void writeClientSlot(size_t index, const ClientRecord& record) {
+  prefs.putString(clientKey(index, "m").c_str(), record.mac);
+  prefs.putBool(clientKey(index, "a").c_str(), record.approved);
+  prefs.putBool(clientKey(index, "b").c_str(), record.blocked);
 }
 }
 
@@ -39,8 +49,8 @@ void storageBegin() {
     prefs.putString("admin_user", RangeLinkConfig::DEFAULT_ADMIN_USER);
   }
   if (!prefs.isKey("admin_pass")) {
-    // Development bootstrap only. A later security milestone replaces this
-    // with protected admin credentials and encrypted upstream secrets.
+    // Development bootstrap only. Protected admin credentials and encrypted
+    // upstream secrets are a dedicated security milestone.
     prefs.putString("admin_pass", RangeLinkConfig::DEFAULT_ADMIN_PASSWORD);
   }
 }
@@ -151,6 +161,60 @@ bool removeWifiProfile(const String& ssid) {
     prefs.putUChar("wifi_n", static_cast<uint8_t>(count - 1));
   }
 
+  return true;
+}
+
+uint8_t getStoredAccessMode() {
+  return prefs.getUChar("access_mode", 0);
+}
+
+void setStoredAccessMode(uint8_t mode) {
+  prefs.putUChar("access_mode", mode);
+}
+
+size_t loadClientPolicies(ClientRecord* out, size_t maxCount) {
+  if (!out || maxCount == 0) return 0;
+
+  size_t count = prefs.getUChar("client_n", 0);
+  if (count > RangeLinkConfig::MAX_CLIENT_RECORDS) {
+    count = RangeLinkConfig::MAX_CLIENT_RECORDS;
+  }
+  if (count > maxCount) {
+    count = maxCount;
+  }
+
+  size_t written = 0;
+  for (size_t i = 0; i < count; ++i) {
+    ClientRecord record;
+    record.mac = prefs.getString(clientKey(i, "m").c_str(), "");
+    record.approved = prefs.getBool(clientKey(i, "a").c_str(), false);
+    record.blocked = prefs.getBool(clientKey(i, "b").c_str(), false);
+
+    if (record.mac.length() == 0) continue;
+    out[written++] = record;
+  }
+
+  return written;
+}
+
+bool saveClientPolicy(const ClientRecord& record) {
+  if (record.mac.length() != 17) return false;
+
+  ClientRecord policies[RangeLinkConfig::MAX_CLIENT_RECORDS];
+  size_t count =
+    loadClientPolicies(policies, RangeLinkConfig::MAX_CLIENT_RECORDS);
+
+  for (size_t i = 0; i < count; ++i) {
+    if (policies[i].mac.equalsIgnoreCase(record.mac)) {
+      writeClientSlot(i, record);
+      return true;
+    }
+  }
+
+  if (count >= RangeLinkConfig::MAX_CLIENT_RECORDS) return false;
+
+  writeClientSlot(count, record);
+  prefs.putUChar("client_n", static_cast<uint8_t>(count + 1));
   return true;
 }
 

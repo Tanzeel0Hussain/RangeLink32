@@ -15,8 +15,10 @@ struct ClientRecord {
   String hostname;
   String ip;
   String mac;
+  int32_t rssi = -127;
   uint64_t rxBytes = 0;
   uint64_t txBytes = 0;
+  bool connected = false;
   bool approved = false;
   bool blocked = false;
 };

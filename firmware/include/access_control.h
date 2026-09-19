@@ -1,5 +1,6 @@
 #pragma once
 #include <Arduino.h>
+#include "models.h"
 
 enum class AccessMode : uint8_t {
   AllowAll = 0,
