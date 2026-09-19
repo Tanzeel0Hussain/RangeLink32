@@ -132,10 +132,36 @@ void checkInternetHealth() {
   lastHealthCheckMs = millis();
   const bool previous = state.internetReachable;
 
-  WiFiClient probe;
-  IPAddress endpoint(1, 1, 1, 1);
-  const bool online = probe.connect(endpoint, 443, 1000);
-  if (online) probe.stop();
+  struct HealthTarget {
+    IPAddress ip;
+    uint16_t port;
+  };
+
+  const HealthTarget targets[] = {
+    {IPAddress(1, 1, 1, 1), 443},
+    {IPAddress(8, 8, 8, 8), 53},
+    {IPAddress(9, 9, 9, 9), 53}
+  };
+
+  bool online = false;
+
+  for (const HealthTarget& target : targets) {
+    WiFiClient probe;
+
+    if (
+      probe.connect(
+        target.ip,
+        target.port,
+        700
+      )
+    ) {
+      probe.stop();
+      online = true;
+      break;
+    }
+
+    probe.stop();
+  }
 
   state.internetReachable = online;
 
