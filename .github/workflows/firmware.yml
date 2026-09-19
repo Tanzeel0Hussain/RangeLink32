@@ -15,15 +15,21 @@ on:
       - ".github/workflows/firmware.yml"
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -33,8 +39,92 @@ jobs:
       - name: Build ESP32 firmware
         run: pio run -e esp32dev
 
+      - name: Prepare browser and release firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUILD=".pio/build/esp32dev"
+          WEB="docs/firmware"
+          mkdir -p "$WEB"
+
+          test -f "$BUILD/bootloader.bin"
+          test -f "$BUILD/partitions.bin"
+          test -f "$BUILD/firmware.bin"
+
+          BOOT_APP="$BUILD/boot_app0.bin"
+          if [ ! -f "$BOOT_APP" ]; then
+            BOOT_APP="$(find ~/.platformio/packages -name boot_app0.bin -type f | head -n 1)"
+          fi
+          test -n "$BOOT_APP"
+          test -f "$BOOT_APP"
+
+          cp "$BUILD/bootloader.bin" "$WEB/bootloader.bin"
+          cp "$BUILD/partitions.bin" "$WEB/partitions.bin"
+          cp "$BOOT_APP" "$WEB/boot_app0.bin"
+          cp "$BUILD/firmware.bin" "$WEB/firmware.bin"
+          cp "$BUILD/firmware.bin" "$WEB/rangelink32-ota.bin"
+
+          python -m esptool \
+            --chip esp32 \
+            merge-bin \
+            --flash-mode dio \
+            --flash-size 4MB \
+            --output "$WEB/rangelink32-full.bin" \
+            0x1000 "$WEB/bootloader.bin" \
+            0x8000 "$WEB/partitions.bin" \
+            0xe000 "$WEB/boot_app0.bin" \
+            0x10000 "$WEB/firmware.bin"
+
       - name: Upload firmware artifact
         uses: actions/upload-artifact@v4
         with:
-          name: rangelink32-firmware
-          path: .pio/build/esp32dev/firmware.bin
+          name: rangelink32-v1.0.0-firmware
+          path: |
+            docs/firmware/rangelink32-full.bin
+            docs/firmware/rangelink32-ota.bin
+            docs/firmware/bootloader.bin
+            docs/firmware/partitions.bin
+            docs/firmware/boot_app0.bin
+            docs/firmware/firmware.bin
+
+      - name: Update browser-installable firmware
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -f docs/firmware/*.bin
+
+          if git diff --cached --quiet; then
+            echo "Browser firmware already current."
+          else
+            git commit -m "build: update RangeLink32 browser firmware [skip ci]"
+            git push
+          fi
+
+      - name: Publish v1.0.0 firmware release
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if gh release view v1.0.0 >/dev/null 2>&1; then
+            gh release upload v1.0.0 \
+              docs/firmware/rangelink32-full.bin \
+              docs/firmware/rangelink32-ota.bin \
+              --clobber
+          else
+            gh release create v1.0.0 \
+              --target "$GITHUB_SHA" \
+              --title "RangeLink32 v1.0.0" \
+              --notes "First software-complete RangeLink32 firmware release for ESP32U / classic ESP32. Includes NAPT Wi-Fi extension, reconnect/failover, protected local admin, encrypted credential storage, device policies, traffic accounting, quotas, bandwidth caps, guest access, schedules, event logs, OTA, safe backup, QR onboarding, channel analysis and placement guidance. CI compilation is verified. Physical ESP32U range, throughput and long-duration stability still require real-hardware validation."
+
+            gh release upload v1.0.0 \
+              docs/firmware/rangelink32-full.bin \
+              docs/firmware/rangelink32-ota.bin \
+              --clobber
+          fi

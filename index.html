@@ -4,61 +4,62 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#07111d">
-  <title>RangeLink32</title>
+  <meta name="description" content="RangeLink32 smart ESP32U Wi-Fi extender and managed gateway.">
+  <title>RangeLink32 — ESP32U Managed Wi-Fi Gateway</title>
+  <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
   <style>
-    :root{--bg:#07111d;--panel:#0d1d2d;--line:#21384d;--text:#eff8ff;--muted:#93aabd;--accent:#49d3ff;--green:#46d69a}
-    *{box-sizing:border-box}
-    body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;color:var(--text);background:
-      radial-gradient(circle at 15% 10%,rgba(73,211,255,.16),transparent 28%),
-      radial-gradient(circle at 85% 10%,rgba(70,214,154,.10),transparent 24%),var(--bg)}
-    .wrap{max-width:1120px;margin:auto;padding:28px 18px 64px}
-    nav{display:flex;justify-content:space-between;align-items:center;gap:14px}
-    .brand{font-weight:900;letter-spacing:.02em}.pill{display:inline-block;padding:7px 10px;border:1px solid var(--line);border-radius:999px;color:var(--muted);font-size:.78rem}
-    .hero{padding:78px 0 46px;max-width:850px}.eyebrow{color:var(--accent);font-weight:800;text-transform:uppercase;letter-spacing:.1em;font-size:.76rem}
-    h1{font-size:clamp(2.6rem,8vw,5.8rem);line-height:.94;margin:14px 0 20px;letter-spacing:-.05em}
-    .lead{font-size:clamp(1rem,2.1vw,1.22rem);line-height:1.7;color:var(--muted);max-width:760px}
-    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:28px}.btn{padding:12px 16px;border-radius:12px;text-decoration:none;font-weight:850;border:1px solid var(--line);color:var(--text)}
-    .btn.primary{background:var(--accent);color:#031018;border-color:transparent}
-    .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:24px}
-    .card{background:rgba(13,29,45,.88);border:1px solid var(--line);border-radius:18px;padding:18px}.card b{display:block;margin-bottom:7px}.card span{color:var(--muted);font-size:.9rem;line-height:1.5}
-    .section{margin-top:42px}.section h2{font-size:1.4rem;margin-bottom:10px}.status{color:var(--green);font-weight:800}
-    code{background:#091827;border:1px solid var(--line);padding:3px 7px;border-radius:8px;color:#cdefff}
-    footer{margin-top:52px;color:var(--muted);font-size:.85rem}
-    @media(max-width:850px){.grid{grid-template-columns:1fr 1fr}}
-    @media(max-width:480px){.grid{grid-template-columns:1fr}.hero{padding-top:56px}}
+    :root{--bg:#06101a;--panel:#0b1c2c;--line:#1d3a50;--text:#eff9ff;--muted:#8fa8ba;--cyan:#48d8ff;--green:#48dda0;--shadow:0 28px 80px rgba(0,0,0,.35)}
+    *{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;color:var(--text);background:radial-gradient(circle at 12% 5%,rgba(72,216,255,.17),transparent 27%),radial-gradient(circle at 86% 8%,rgba(72,221,160,.12),transparent 24%),linear-gradient(155deg,#050d16,var(--bg) 50%,#071827);min-height:100vh}
+    .wrap{max-width:1160px;margin:auto;padding:26px 18px 70px}nav{display:flex;justify-content:space-between;align-items:center;gap:16px}.logo{font-weight:950;letter-spacing:.02em}.tag{font-size:.76rem;color:var(--muted);border:1px solid var(--line);padding:7px 11px;border-radius:999px}
+    .hero{display:grid;grid-template-columns:1.2fr .8fr;gap:36px;align-items:center;padding:74px 0 50px}.eyebrow{color:var(--cyan);font-size:.76rem;text-transform:uppercase;letter-spacing:.12em;font-weight:900}h1{font-size:clamp(3rem,8vw,6.6rem);line-height:.91;letter-spacing:-.06em;margin:14px 0 22px}.lead{max-width:760px;color:var(--muted);font-size:clamp(1rem,2vw,1.18rem);line-height:1.7}
+    .orb{aspect-ratio:1;border-radius:32%;position:relative;background:linear-gradient(145deg,rgba(72,216,255,.20),rgba(72,221,160,.05));border:1px solid rgba(72,216,255,.22);box-shadow:var(--shadow);transform:perspective(700px) rotateY(-11deg) rotateX(7deg)}.orb:before,.orb:after{content:"";position:absolute;border-radius:50%;border:1px solid rgba(72,216,255,.28)}.orb:before{inset:14%}.orb:after{inset:28%}.signal{position:absolute;inset:0;display:grid;place-items:center;font-size:clamp(4rem,10vw,8rem);font-weight:950;color:var(--cyan);text-shadow:0 0 38px rgba(72,216,255,.35)}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:28px}.btn{display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:12px;padding:12px 16px;color:var(--text);text-decoration:none;font-weight:850;background:#0d2234;cursor:pointer}.btn.primary{background:var(--cyan);border-color:transparent;color:#031018}.install{margin-top:18px}
+    .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:18px}.card{background:rgba(11,28,44,.92);border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:0 12px 34px rgba(0,0,0,.13)}.card b{display:block;margin-bottom:7px}.card p,.card span{margin:0;color:var(--muted);line-height:1.55;font-size:.9rem}.section{margin-top:42px}.section h2{font-size:1.5rem;margin:0 0 14px}.step{display:flex;gap:12px;padding:13px 0;border-bottom:1px solid var(--line)}.step:last-child{border:0}.num{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:#102b40;color:var(--cyan);font-weight:900;flex:0 0 auto}.ok{color:var(--green);font-weight:900}.note{border-left:3px solid var(--cyan)}code{background:#081724;border:1px solid var(--line);padding:2px 6px;border-radius:7px}footer{margin-top:54px;color:var(--muted);font-size:.84rem}
+    @media(max-width:850px){.hero{grid-template-columns:1fr}.orb{max-width:340px;width:72%;margin:auto}.grid{grid-template-columns:1fr 1fr}}@media(max-width:520px){.grid{grid-template-columns:1fr}.hero{padding-top:55px}}
   </style>
 </head>
 <body>
 <main class="wrap">
-  <nav>
-    <div class="brand">RangeLink32</div>
-    <span class="pill">P4 · Active Development</span>
-  </nav>
-
+  <nav><div class="logo">RangeLink32</div><div class="tag">v1.0.0 · ESP32U</div></nav>
   <section class="hero">
-    <div class="eyebrow">ESP32U + External Antenna</div>
-    <h1>Extend Wi-Fi.<br>Manage every connection.</h1>
-    <p class="lead">RangeLink32 is a smart ESP32 Wi-Fi extender and managed gateway project with automatic upstream recovery, a permanent local admin network, client access controls, traffic accounting, failover and a router-style dashboard.</p>
-    <div class="actions">
-      <a class="btn primary" href="https://github.com/Tanzeel0Hussain/RangeLink32">View Source</a>
-      <a class="btn" href="https://github.com/Tanzeel0Hussain/RangeLink32/actions">Build Status</a>
+    <div>
+      <div class="eyebrow">Smart Wi-Fi Extender · Managed Gateway</div>
+      <h1>Reach farther.<br>Control more.</h1>
+      <p class="lead">RangeLink32 turns a classic ESP32U with an external antenna into a managed 2.4 GHz Wi-Fi gateway with automatic reconnect, saved-network failover, NAPT Internet forwarding, client controls, usage accounting and a router-style local dashboard.</p>
+      <div class="install">
+        <esp-web-install-button manifest="manifest.json">
+          <button slot="activate" class="btn primary">Install RangeLink32</button>
+          <span slot="unsupported">Use a Chromium-based browser with Web Serial support.</span>
+        </esp-web-install-button>
+      </div>
+      <div class="actions">
+        <a class="btn" href="https://github.com/Tanzeel0Hussain/RangeLink32/releases/tag/v1.0.0">Download Firmware</a>
+        <a class="btn" href="https://github.com/Tanzeel0Hussain/RangeLink32">View Source</a>
+        <a class="btn" href="https://github.com/Tanzeel0Hussain/RangeLink32/actions">Build Status</a>
+      </div>
     </div>
+    <div class="orb"><div class="signal">)))</div></div>
   </section>
-
   <section class="grid">
-    <div class="card"><b>Auto Reconnect</b><span>Reconnects to the configured upstream Wi-Fi with increasing retry delays.</span></div>
-    <div class="card"><b>Managed Gateway</b><span>Permanent local management access at <code>192.168.50.1</code>.</span></div>
-    <div class="card"><b>Client Control</b><span>MAC-based allow/block policies and per-device Internet controls are planned.</span></div>
-    <div class="card"><b>Traffic Intelligence</b><span>Per-device and per-network usage accounting is part of the target design.</span></div>
+    <div class="card"><b>Automatic Recovery</b><span>Reconnect backoff, saved-network failover, Internet health checks and watchdog recovery.</span></div>
+    <div class="card"><b>Managed Clients</b><span>MAC/IP inventory, allowlist, Internet-only block, guest access, schedules and custom device names.</span></div>
+    <div class="card"><b>Traffic Controls</b><span>Per-device usage counters, daily quotas and approximate bandwidth caps.</span></div>
+    <div class="card"><b>Private Management</b><span>Encrypted stored credentials, password re-authentication, local QR onboarding, OTA and safe backup.</span></div>
   </section>
-
   <section class="section card">
-    <h2>Current Development Status</h2>
-    <p><span class="status">● Firmware build passing</span></p>
-    <p class="lead">The firmware is modularized into Wi-Fi management, storage, routing, access control and web-admin components. NAT/NAPT forwarding, saved Wi-Fi profiles, failover and client accounting are the next implementation milestones and will be hardware-verified before being marked complete.</p>
+    <h2>Quick Start</h2>
+    <div class="step"><div class="num">1</div><div><b>Connect ESP32U by USB</b><p>Use a data-capable cable and a Chromium-based desktop browser.</p></div></div>
+    <div class="step"><div class="num">2</div><div><b>Install firmware</b><p>Click <strong>Install RangeLink32</strong>, select the ESP32 serial port and flash.</p></div></div>
+    <div class="step"><div class="num">3</div><div><b>Join RangeLink32-Setup</b><p>Initial password: <code>rangelink32</code>.</p></div></div>
+    <div class="step"><div class="num">4</div><div><b>Open 192.168.50.1</b><p>Initial admin login: <code>admin</code> / <code>changeme32</code>. Change both defaults immediately.</p></div></div>
+    <div class="step"><div class="num">5</div><div><b>Select your upstream Wi-Fi</b><p>Scan, choose a network, enter its password and connect.</p></div></div>
   </section>
-
-  <footer>RangeLink32 · Smart ESP32 Wi-Fi Extender & Managed Gateway</footer>
+  <section class="section card note">
+    <h2>Validation</h2>
+    <p><span class="ok">● Firmware CI compile verified</span></p>
+    <p>Physical ESP32U range, throughput, long-duration stability and antenna performance still require validation on the actual hardware.</p>
+  </section>
+  <footer>RangeLink32 · MIT licensed · 2.4 GHz classic ESP32 / ESP32U target</footer>
 </main>
 </body>
 </html>
