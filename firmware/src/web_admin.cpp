@@ -1,5 +1,6 @@
 #include <WebServer.h>
 #include <Update.h>
+#include <esp_system.h>
 #include <vector>
 #include "qrcode.h"
 #include "web_admin.h"
@@ -12,6 +13,43 @@ namespace {
 WebServer server(80);
 bool restartPending = false;
 unsigned long restartRequestedAt = 0;
+String csrfToken;
+
+String makeCsrfToken() {
+  char token[33];
+
+  snprintf(
+    token,
+    sizeof(token),
+    "%08lX%08lX%08lX%08lX",
+    static_cast<unsigned long>(esp_random()),
+    static_cast<unsigned long>(esp_random()),
+    static_cast<unsigned long>(esp_random()),
+    static_cast<unsigned long>(esp_random())
+  );
+
+  return String(token);
+}
+
+bool csrfValid() {
+  const String supplied = server.arg("csrf");
+
+  return
+    csrfToken.length() == 32 &&
+    supplied.length() == csrfToken.length() &&
+    supplied == csrfToken;
+}
+
+bool requireCsrf() {
+  if (csrfValid()) return true;
+
+  server.send(
+    403,
+    "text/plain",
+    "Invalid or missing CSRF token."
+  );
+  return false;
+}
 
 String placementLabel(int32_t rssi) {
   if (rssi == -127) return "No upstream signal";
@@ -35,6 +73,13 @@ bool requireAdmin(bool allowDuringInitialSetup = false) {
       DIGEST_AUTH,
       "RangeLink32 Admin"
     );
+    return false;
+  }
+
+  if (
+    server.method() != HTTP_GET &&
+    !requireCsrf()
+  ) {
     return false;
   }
 
@@ -72,6 +117,9 @@ button{width:100%;margin-top:18px;border:0;border-radius:11px;padding:13px;backg
 <h1>Secure RangeLink32 before using it.</h1>
 <p>The factory credentials are public setup credentials. Choose a new hotspot password and a different admin password before the normal dashboard is unlocked.</p>
 <form method="post" action="/setup/security">
+<input type="hidden" name="csrf" value=")HTML";
+  html += csrfToken;
+  html += R"HTML(">
 <label>RangeLink32 Wi-Fi name</label>
 <input name="ssid" maxlength="32" value=")HTML";
   html += getApSsid();
@@ -261,13 +309,14 @@ small{color:var(--muted);line-height:1.5}@media(max-width:850px){.grid{grid-temp
 <div class="row"><div><b>Chip</b><div class="meta">)HTML" + String(ESP.getChipModel()) + R"HTML( · Free heap )HTML" + String(ESP.getFreeHeap()/1024) + R"HTML( KB</div></div></div>
 <div class="row"><div><b>Uptime</b><div class="meta">)HTML" + String(millis()/1000) + R"HTML( seconds</div></div></div>
 <div class="actions">
-<a class="btn secondary" href="/reconnect">Reconnect upstream</a>
+<form method="post" action="/reconnect"><button class="btn secondary">Reconnect upstream</button></form>
 <form method="post" action="/system/restart"><button class="btn secondary">Restart ESP32</button></form>
 <form method="post" action="/system/factory-reset" onsubmit="return confirm('Erase RangeLink32 settings and restart?')"><button class="btn danger">Factory Reset</button></form>
 </div>
 </section>
 
 <script>
+const csrfToken=')HTML" + csrfToken + R"HTML(';
 const esc=s=>String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 
 const savedTheme=localStorage.getItem('rangelink32-theme');
@@ -277,6 +326,21 @@ function toggleTheme(){
   document.documentElement.dataset.theme=next;
   localStorage.setItem('rangelink32-theme',next);
 }
+
+document.addEventListener('submit',event=>{
+  const form=event.target;
+  if(
+    form instanceof HTMLFormElement &&
+    form.method.toLowerCase()==='post' &&
+    !form.querySelector('input[name="csrf"]')
+  ){
+    const input=document.createElement('input');
+    input.type='hidden';
+    input.name='csrf';
+    input.value=csrfToken;
+    form.prepend(input);
+  }
+},true);
 
 async function loadNetworks(){
   const data=await (await fetch('/api/networks')).json();
@@ -455,7 +519,11 @@ function pickSsid(ssid){
 }
 
 async function scanNow(){
-  await fetch('/scan',{method:'POST'});
+  await fetch('/scan',{
+    method:'POST',
+    headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:new URLSearchParams({csrf:csrfToken})
+  });
   await loadNetworks();
   await loadChannels();
 }
@@ -474,6 +542,8 @@ setInterval(loadClients,5000);
 }
 
 void webAdminBegin() {
+  csrfToken = makeCsrfToken();
+
   server.on("/", HTTP_GET, []() {
     if (!requireAdmin(true)) return;
 
@@ -1006,10 +1076,13 @@ void webAdminBegin() {
       if (ok) scheduleRestart();
     },
     []() {
-      if (!server.authenticate(
-            getAdminUser().c_str(),
-            getAdminPassword().c_str()
-          )) {
+      if (
+        !server.authenticate(
+          getAdminUser().c_str(),
+          getAdminPassword().c_str()
+        ) ||
+        !csrfValid()
+      ) {
         return;
       }
 
@@ -1049,7 +1122,7 @@ void webAdminBegin() {
     scheduleRestart();
   });
 
-  server.on("/reconnect", HTTP_GET, []() {
+  server.on("/reconnect", HTTP_POST, []() {
     if (!requireAdmin()) return;
     reconnectUpstream();
     server.sendHeader("Location", "/");
