@@ -119,7 +119,15 @@ void refreshClients(bool enforcePolicy) {
       ipForMac(ipList, wifiList.sta[i].mac, record.ip);
     }
 
-    const int index = policyIndex(record.mac);
+    int index = policyIndex(record.mac);
+    if (index < 0) {
+      ClientRecord seen;
+      seen.mac = record.mac;
+      saveClientPolicy(seen);
+      reloadPolicies();
+      index = policyIndex(record.mac);
+    }
+
     if (index >= 0) {
       record.approved = policies[index].approved;
       record.blocked = policies[index].blocked;
@@ -211,20 +219,35 @@ String getClientTableJson() {
   }
 
   String json = "[";
-  for (size_t i = 0; i < liveCount; ++i) {
-    if (i) json += ",";
 
-    const ClientRecord& c = liveClients[i];
-    json += "{\"hostname\":\"" + jsonEscape(c.hostname) +
-            "\",\"ip\":\"" + jsonEscape(c.ip) +
-            "\",\"mac\":\"" + jsonEscape(c.mac) +
-            "\",\"rssi\":" + String(c.rssi) +
-            ",\"approved\":" + String(c.approved ? "true" : "false") +
-            ",\"blocked\":" + String(c.blocked ? "true" : "false") +
+  for (size_t p = 0; p < policyCount; ++p) {
+    if (p) json += ",";
+
+    ClientRecord record = policies[p];
+
+    for (size_t i = 0; i < liveCount; ++i) {
+      if (liveClients[i].mac.equalsIgnoreCase(record.mac)) {
+        record.ip = liveClients[i].ip;
+        record.rssi = liveClients[i].rssi;
+        record.connected = true;
+        break;
+      }
+    }
+
+    json += "{\"hostname\":\"" + jsonEscape(record.hostname) +
+            "\",\"ip\":\"" + jsonEscape(record.ip) +
+            "\",\"mac\":\"" + jsonEscape(record.mac) +
+            "\",\"rssi\":" + String(record.rssi) +
+            ",\"connected\":" + String(record.connected ? "true" : "false") +
+            ",\"approved\":" + String(record.approved ? "true" : "false") +
+            ",\"blocked\":" + String(record.blocked ? "true" : "false") +
             ",\"allowed\":" +
-            String(clientMayUseInternet(c.mac) ? "true" : "false") +
+            String(clientMayUseInternet(record.mac) ? "true" : "false") +
+            ",\"rxBytes\":" + String(static_cast<unsigned long long>(record.rxBytes)) +
+            ",\"txBytes\":" + String(static_cast<unsigned long long>(record.txBytes)) +
             "}";
   }
+
   json += "]";
   return json;
 }

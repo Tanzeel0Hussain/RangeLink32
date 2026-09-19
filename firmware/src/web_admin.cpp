@@ -3,6 +3,7 @@
 #include "wifi_manager.h"
 #include "router_engine.h"
 #include "storage.h"
+#include "access_control.h"
 
 namespace {
 WebServer server(80);
@@ -72,6 +73,24 @@ small{color:var(--muted);line-height:1.5}@media(max-width:850px){.grid{grid-temp
 </section>
 
 <section class="card">
+<h3>Connected & Known Devices</h3>
+<div class="actions">
+<form method="post" action="/access/mode">
+<input type="hidden" name="mode" value="all">
+<button class="btn secondary" type="submit">Allow all devices</button>
+</form>
+<form method="post" action="/access/mode">
+<input type="hidden" name="mode" value="allowlist">
+<button class="btn secondary" type="submit">Allowlisted devices only</button>
+</form>
+</div>
+<p><small>Current access mode: <b>)HTML" +
+          String(getAccessMode() == AccessMode::AllowlistOnly ? "Allowlisted only" : "Allow all") +
+          R"HTML(</b>. In allowlist mode, devices that are not approved are disconnected from the RangeLink32 AP. Per-device NAPT-only blocking without disconnecting is a later routing milestone.</small></p>
+<div id="clients"><small>Loading client inventory…</small></div>
+</section>
+
+<section class="card">
 <h3>Connect a Network</h3>
 <form method="post" action="/connect">
 <input id="ssid" name="ssid" placeholder="Wi-Fi name (SSID)" required>
@@ -99,6 +118,39 @@ async function loadNetworks(){
     </div>`).join(''):'<small>No networks found.</small>';
 }
 
+function bytes(v){
+  if(!v) return '0 B';
+  const units=['B','KB','MB','GB'];
+  let n=Number(v),i=0;
+  while(n>=1024&&i<units.length-1){n/=1024;i++;}
+  return n.toFixed(i?1:0)+' '+units[i];
+}
+
+async function loadClients(){
+  const data=await (await fetch('/api/clients')).json();
+  const box=document.getElementById('clients');
+  box.innerHTML=data.length?data.map(c=>`
+    <div class="row">
+      <div>
+        <b>${esc(c.mac)}</b>
+        <div class="meta">${c.connected?'Connected':'Previously seen'} · IP ${esc(c.ip||'—')}${c.connected?' · '+c.rssi+' dBm':''}</div>
+        <div class="meta">Internet policy: ${c.allowed?'Allowed':'Blocked'} · Usage counters: ${bytes(c.rxBytes+c.txBytes)}</div>
+      </div>
+      <div class="actions">
+        <form method="post" action="/client/approve">
+          <input type="hidden" name="mac" value="${esc(c.mac)}">
+          <input type="hidden" name="approved" value="${c.approved?'0':'1'}">
+          <button class="btn secondary">${c.approved?'Remove approval':'Approve'}</button>
+        </form>
+        <form method="post" action="/client/block">
+          <input type="hidden" name="mac" value="${esc(c.mac)}">
+          <input type="hidden" name="blocked" value="${c.blocked?'0':'1'}">
+          <button class="btn ${c.blocked?'secondary':'danger'}">${c.blocked?'Unblock':'Block'}</button>
+        </form>
+      </div>
+    </div>`).join(''):'<small>No devices have connected yet.</small>';
+}
+
 async function loadProfiles(){
   const data=await (await fetch('/api/profiles')).json();
   const box=document.getElementById('profiles');
@@ -124,6 +176,8 @@ async function scanNow(){
 
 loadNetworks();
 loadProfiles();
+loadClients();
+setInterval(loadClients,5000);
 </script>
 </main></body></html>)HTML";
 
@@ -145,6 +199,11 @@ void webAdminBegin() {
   server.on("/api/profiles", HTTP_GET, []() {
     if (!requireAdmin()) return;
     server.send(200, "application/json", getSavedProfilesJson());
+  });
+
+  server.on("/api/clients", HTTP_GET, []() {
+    if (!requireAdmin()) return;
+    server.send(200, "application/json", getClientTableJson());
   });
 
   server.on("/scan", HTTP_POST, []() {
@@ -175,6 +234,43 @@ void webAdminBegin() {
   server.on("/profile/forget", HTTP_POST, []() {
     if (!requireAdmin()) return;
     forgetSavedProfile(server.arg("ssid"));
+    server.sendHeader("Location", "/");
+    server.send(303);
+  });
+
+  server.on("/access/mode", HTTP_POST, []() {
+    if (!requireAdmin()) return;
+
+    setAccessMode(
+      server.arg("mode") == "allowlist"
+        ? AccessMode::AllowlistOnly
+        : AccessMode::AllowAll
+    );
+
+    server.sendHeader("Location", "/");
+    server.send(303);
+  });
+
+  server.on("/client/approve", HTTP_POST, []() {
+    if (!requireAdmin()) return;
+
+    setClientApproval(
+      server.arg("mac"),
+      server.arg("approved") == "1"
+    );
+
+    server.sendHeader("Location", "/");
+    server.send(303);
+  });
+
+  server.on("/client/block", HTTP_POST, []() {
+    if (!requireAdmin()) return;
+
+    setClientBlocked(
+      server.arg("mac"),
+      server.arg("blocked") == "1"
+    );
+
     server.sendHeader("Location", "/");
     server.send(303);
   });
