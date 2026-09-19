@@ -19,21 +19,72 @@
     <button class="menu-btn" aria-label="Open navigation">☰</button>
     <nav class="nav-links">
       <a href="#features">Features</a><a href="#dashboard">Dashboard</a><a href="#gallery">Gallery</a><a href="#install">Installer</a><a href="#docs">Docs</a>
-      <a class="nav-cta" href="https://github.com/Tanzeel0Hussain/RangeLink32/releases/tag/v1.0.0">Get Firmware</a>
+      <a class="nav-cta" href="#start">⚡ Install Now</a>
     </nav>
   </div>
 </header>
 
 <main id="home">
+
+<section id="start" class="launch-zone">
+  <div class="container">
+    <div class="launch-panel">
+      <div class="launch-copy">
+        <div class="launch-badge"><span></span>START HERE · RANGE<span>LINK32</span> v1.0.0</div>
+        <h2>Connect your ESP32U.<br><em>Install in one click.</em></h2>
+        <p>No searching, no guessing. Connect the board by USB and start with the browser installer. Prefer a file? Download the complete firmware image beside it.</p>
+
+        <div class="launch-actions">
+          <esp-web-install-button manifest="manifest.json">
+            <button slot="activate" class="launch-btn install">⚡ Install RangeLink32</button>
+            <div slot="unsupported" class="installer-unsupported">
+              Browser flashing needs a Chromium-based desktop browser with Web Serial.
+            </div>
+          </esp-web-install-button>
+
+          <a class="launch-btn download" href="https://github.com/Tanzeel0Hussain/RangeLink32/releases/download/v1.0.0/rangelink32-full.bin" download>
+            ↓ Download Full Firmware
+            <small>rangelink32-full.bin · first install</small>
+          </a>
+        </div>
+
+        <div class="launch-mini-links">
+          <a href="https://github.com/Tanzeel0Hussain/RangeLink32/releases/tag/v1.0.0">Release v1.0.0</a>
+          <span>•</span>
+          <a href="#install">Installation guide</a>
+          <span>•</span>
+          <a href="https://github.com/Tanzeel0Hussain/RangeLink32">Source code</a>
+        </div>
+      </div>
+
+      <div class="quick-path" aria-label="RangeLink32 quick setup">
+        <div class="quick-step active"><span>01</span><div><b>Connect ESP32U</b><small>Use a USB data cable</small></div></div>
+        <div class="quick-arrow">→</div>
+        <div class="quick-step"><span>02</span><div><b>Install</b><small>Choose your serial device</small></div></div>
+        <div class="quick-arrow">→</div>
+        <div class="quick-step"><span>03</span><div><b>Join Setup Wi‑Fi</b><small>RangeLink32-Setup</small></div></div>
+        <div class="quick-arrow">→</div>
+        <div class="quick-step"><span>04</span><div><b>Open Admin</b><small>192.168.50.1</small></div></div>
+      </div>
+
+      <div class="launch-status">
+        <span>● Release firmware available</span>
+        <span>● Browser installer ready</span>
+        <span>● Local admin · no cloud</span>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section class="container hero">
   <div class="hero-copy">
     <span class="eyebrow">⚡ ESP32U · P4 Smart Wi-Fi Project</span>
     <h1>Extend Wi-Fi <span>Beyond Limits.</span></h1>
     <p>RangeLink32 turns a classic ESP32U with an external antenna into a managed 2.4 GHz Wi-Fi gateway with automatic reconnect, saved-network failover, device access control, daily/monthly quotas and a secure local admin experience.</p>
-    <div class="actions">
-      <a class="btn primary" href="https://github.com/Tanzeel0Hussain/RangeLink32/releases/tag/v1.0.0">↓ Get Firmware</a>
-      <a class="btn" href="#dashboard">▶ Dashboard Preview</a>
-      <a class="btn" href="https://github.com/Tanzeel0Hussain/RangeLink32">GitHub</a>
+    <div class="actions hero-actions">
+      <a class="btn primary hero-install" href="#start">⚡ Install RangeLink32</a>
+      <a class="btn" href="https://github.com/Tanzeel0Hussain/RangeLink32/releases/download/v1.0.0/rangelink32-full.bin">↓ Download Firmware</a>
+      <a class="btn" href="#dashboard">Dashboard Preview</a>
     </div>
     <div class="trust-row"><span><i class="dot"></i>Open source</span><span><i class="dot"></i>No cloud required</span><span><i class="dot"></i>Browser install</span><span><i class="dot"></i>Mobile friendly</span></div>
   </div>
@@ -75,9 +126,33 @@
 
 <section id="install" class="section">
   <div class="container">
-    <div class="card install-card reveal">
-      <div><div class="kicker">Browser firmware installer</div><h2 style="font-size:2.2rem;margin:7px 0 8px">Flash RangeLink32 from the browser.</h2><p>Connect the ESP32U by USB, use a Chromium-based desktop browser with Web Serial support, then install the release build. After flashing, join <code>RangeLink32-Setup</code> and open <code>192.168.50.1</code>.</p><div class="installer-note">Initial credentials are development defaults and should be changed after first login.</div></div>
-      <esp-web-install-button manifest="manifest.json"><button slot="activate" class="btn primary">⚡ Install RangeLink32</button><span slot="unsupported">Web Serial is unavailable in this browser. Use the downloadable firmware release instead.</span></esp-web-install-button>
+    <div class="section-head reveal">
+      <div><div class="kicker">Installation guide</div><h2>From USB cable to live admin.</h2></div>
+      <p>The first screen already gives you the installer. This section explains exactly what happens next.</p>
+    </div>
+
+    <div class="install-guide reveal">
+      <article class="install-step"><span>1</span><div><b>Connect the ESP32U</b><p>Use a data-capable USB cable and keep the board powered during flashing.</p></div></article>
+      <article class="install-step"><span>2</span><div><b>Press Install RangeLink32</b><p>Your compatible browser opens the serial-device chooser. Select the ESP32 device and continue.</p></div></article>
+      <article class="install-step"><span>3</span><div><b>Join RangeLink32-Setup</b><p>After flashing, connect to <code>RangeLink32-Setup</code> using the initial password <code>rangelink32</code>.</p></div></article>
+      <article class="install-step"><span>4</span><div><b>Open 192.168.50.1</b><p>Sign in with <code>admin</code> / <code>changeme32</code>, then change both default credentials before normal use.</p></div></article>
+    </div>
+
+    <div class="card install-card install-repeat reveal">
+      <div>
+        <div class="kicker">Ready to flash?</div>
+        <h2 style="font-size:2.2rem;margin:7px 0 8px">Install now or keep the firmware file.</h2>
+        <p>Browser installation is the easiest first-install path. The complete combined binary is also available for manual flashing from offset <code>0x0</code>.</p>
+        <div class="installer-note">Browser flashing requires Web Serial, typically available in Chromium-based desktop browsers. The website itself remains fully responsive on mobile.</div>
+      </div>
+      <div class="install-repeat-actions">
+        <esp-web-install-button manifest="manifest.json">
+          <button slot="activate" class="btn primary big-install">⚡ Install RangeLink32</button>
+          <span slot="unsupported">Web Serial unavailable here.</span>
+        </esp-web-install-button>
+        <a class="btn firmware-download" href="https://github.com/Tanzeel0Hussain/RangeLink32/releases/download/v1.0.0/rangelink32-full.bin">↓ Download Full Firmware</a>
+        <a class="text-link" href="https://github.com/Tanzeel0Hussain/RangeLink32/releases/download/v1.0.0/rangelink32-ota.bin">Download OTA firmware</a>
+      </div>
     </div>
   </div>
 </section>
@@ -181,5 +256,9 @@
 </main>
 
 <footer><div class="container footer-row"><span>© <span data-year></span> RangeLink32 · MIT licensed</span><span>ESP32U · Open source · Local management</span></div></footer>
+<div class="mobile-install-bar" aria-label="Quick install">
+  <a href="#start">⚡ Install</a>
+  <a href="https://github.com/Tanzeel0Hussain/RangeLink32/releases/download/v1.0.0/rangelink32-full.bin">↓ Firmware</a>
+</div>
 <script src="assets/site.js"></script>
 </body></html>

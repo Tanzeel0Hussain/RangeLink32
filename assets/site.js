@@ -104,3 +104,10 @@ if(galleryStage && gallerySlides.length){
   showGallerySlide(0);
   restartGalleryTimer();
 }
+
+document.querySelectorAll('esp-web-install-button').forEach(button=>{
+  button.addEventListener('click',()=>{
+    document.querySelector('#start')?.classList.add('install-attention');
+    setTimeout(()=>document.querySelector('#start')?.classList.remove('install-attention'),900);
+  });
+});
