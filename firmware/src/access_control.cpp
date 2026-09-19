@@ -73,6 +73,24 @@ uint32_t currentEpoch() {
   return static_cast<uint32_t>(now);
 }
 
+int32_t currentLocalMonth() {
+  const uint32_t epoch = currentEpoch();
+  if (!epoch) return -1;
+
+  const time_t shifted =
+    static_cast<time_t>(
+      static_cast<int64_t>(epoch) +
+      static_cast<int64_t>(getTimezoneOffsetMinutes()) * 60LL
+    );
+
+  struct tm localTime = {};
+  gmtime_r(&shifted, &localTime);
+
+  return
+    (localTime.tm_year + 1900) * 12 +
+    localTime.tm_mon;
+}
+
 int32_t currentLocalDay() {
   const uint32_t epoch = currentEpoch();
 
@@ -139,6 +157,8 @@ void refreshStats(ClientRecord& record) {
   uint64_t tx = record.txBytes;
   uint64_t dailyRx = record.dailyRxBytes;
   uint64_t dailyTx = record.dailyTxBytes;
+  uint64_t monthlyRx = record.monthlyRxBytes;
+  uint64_t monthlyTx = record.monthlyTxBytes;
 
   if (
     trafficMonitorGetStats(
@@ -146,13 +166,41 @@ void refreshStats(ClientRecord& record) {
       rx,
       tx,
       dailyRx,
-      dailyTx
+      dailyTx,
+      monthlyRx,
+      monthlyTx
     )
   ) {
     record.rxBytes = rx;
     record.txBytes = tx;
     record.dailyRxBytes = dailyRx;
     record.dailyTxBytes = dailyTx;
+    record.monthlyRxBytes = monthlyRx;
+    record.monthlyTxBytes = monthlyTx;
+  }
+}
+
+void resetMonthlyIfNeeded(ClientRecord& record) {
+  const int32_t month = currentLocalMonth();
+
+  if (month < 0) return;
+
+  if (record.usageMonth < 0) {
+    record.usageMonth = month;
+    return;
+  }
+
+  if (record.usageMonth != month) {
+    trafficMonitorResetMonthlyUsage(record.mac);
+
+    record.monthlyRxBytes = 0;
+    record.monthlyTxBytes = 0;
+    record.usageMonth = month;
+
+    appendEventLog(
+      "quota",
+      "Monthly usage reset for " + record.mac
+    );
   }
 }
 
@@ -183,6 +231,7 @@ void resetDailyIfNeeded(ClientRecord& record) {
 bool effectivePolicyAllows(ClientRecord& record) {
   refreshStats(record);
   resetDailyIfNeeded(record);
+  resetMonthlyIfNeeded(record);
 
   if (record.blocked) return false;
 
@@ -198,6 +247,14 @@ bool effectivePolicyAllows(ClientRecord& record) {
     record.dailyQuotaBytes > 0 &&
     record.dailyRxBytes + record.dailyTxBytes >=
       record.dailyQuotaBytes
+  ) {
+    return false;
+  }
+
+  if (
+    record.monthlyQuotaBytes > 0 &&
+    record.monthlyRxBytes + record.monthlyTxBytes >=
+      record.monthlyQuotaBytes
   ) {
     return false;
   }
@@ -234,6 +291,7 @@ ClientRecord policyFor(const String& mac) {
   ClientRecord record;
   record.mac = mac;
   record.usageDay = currentLocalDay();
+  record.usageMonth = currentLocalMonth();
 
   return record;
 }
@@ -244,6 +302,7 @@ void persistRuntimeStats() {
 
     refreshStats(record);
     resetDailyIfNeeded(record);
+    resetMonthlyIfNeeded(record);
 
     saveClientPolicy(record);
     policies[i] = record;
@@ -303,6 +362,7 @@ void refreshClients() {
       ClientRecord seen;
       seen.mac = record.mac;
       seen.usageDay = currentLocalDay();
+      seen.usageMonth = currentLocalMonth();
 
       saveClientPolicy(seen);
       reloadPolicies();
@@ -324,6 +384,7 @@ void refreshClients() {
 
       refreshStats(stored);
       resetDailyIfNeeded(stored);
+      resetMonthlyIfNeeded(stored);
 
       const bool allowed =
         effectivePolicyAllows(stored);
@@ -344,6 +405,7 @@ void refreshClients() {
 
     refreshStats(stored);
     resetDailyIfNeeded(stored);
+    resetMonthlyIfNeeded(stored);
 
     const bool allowed =
       effectivePolicyAllows(stored);
@@ -499,6 +561,7 @@ bool setClientName(
 bool setClientLimits(
   const String& mac,
   uint64_t dailyQuotaBytes,
+  uint64_t monthlyQuotaBytes,
   uint32_t bandwidthKbps
 ) {
   if (mac.length() != 17) return false;
@@ -506,6 +569,7 @@ bool setClientLimits(
   ClientRecord record = policyFor(mac);
 
   record.dailyQuotaBytes = dailyQuotaBytes;
+  record.monthlyQuotaBytes = monthlyQuotaBytes;
   record.bandwidthKbps = bandwidthKbps;
 
   if (!saveClientPolicy(record)) return false;
@@ -592,6 +656,10 @@ bool resetClientUsage(
   record.usageDay = currentLocalDay();
 
   if (resetTotal) {
+    trafficMonitorResetMonthlyUsage(mac);
+    record.monthlyRxBytes = 0;
+    record.monthlyTxBytes = 0;
+    record.usageMonth = currentLocalMonth();
     record.rxBytes = 0;
     record.txBytes = 0;
   }
@@ -605,6 +673,32 @@ bool resetClientUsage(
         ? "Reset total usage for "
         : "Reset daily usage for "
     ) + mac
+  );
+
+  reloadPolicies();
+  refreshClients();
+
+  return true;
+}
+
+bool resetClientMonthlyUsage(
+  const String& mac
+) {
+  if (mac.length() != 17) return false;
+
+  ClientRecord record = policyFor(mac);
+
+  trafficMonitorResetMonthlyUsage(mac);
+
+  record.monthlyRxBytes = 0;
+  record.monthlyTxBytes = 0;
+  record.usageMonth = currentLocalMonth();
+
+  if (!saveClientPolicy(record)) return false;
+
+  appendEventLog(
+    "client",
+    "Reset monthly usage for " + mac
   );
 
   reloadPolicies();
@@ -653,6 +747,7 @@ String getClientTableJson() {
 
     refreshStats(record);
     resetDailyIfNeeded(record);
+    resetMonthlyIfNeeded(record);
 
     const bool allowed =
       effectivePolicyAllows(record);
@@ -709,6 +804,24 @@ String getClientTableJson() {
       String(
         static_cast<unsigned long long>(
           record.dailyQuotaBytes
+        )
+      ) +
+      ",\"monthlyRxBytes\":" +
+      String(
+        static_cast<unsigned long long>(
+          record.monthlyRxBytes
+        )
+      ) +
+      ",\"monthlyTxBytes\":" +
+      String(
+        static_cast<unsigned long long>(
+          record.monthlyTxBytes
+        )
+      ) +
+      ",\"monthlyQuotaBytes\":" +
+      String(
+        static_cast<unsigned long long>(
+          record.monthlyQuotaBytes
         )
       ) +
       ",\"bandwidthKbps\":" +

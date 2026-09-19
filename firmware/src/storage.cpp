@@ -68,9 +68,14 @@ void writeClientSlot(size_t index, const ClientRecord& record) {
   prefs.putULong64(clientKey(index, "dt").c_str(), record.dailyTxBytes);
   prefs.putULong64(clientKey(index, "q").c_str(), record.dailyQuotaBytes);
 
+  prefs.putULong64(clientKey(index, "mr").c_str(), record.monthlyRxBytes);
+  prefs.putULong64(clientKey(index, "mt").c_str(), record.monthlyTxBytes);
+  prefs.putULong64(clientKey(index, "mq").c_str(), record.monthlyQuotaBytes);
+
   prefs.putUInt(clientKey(index, "bw").c_str(), record.bandwidthKbps);
   prefs.putUInt(clientKey(index, "gu").c_str(), record.guestUntilEpoch);
   prefs.putInt(clientKey(index, "day").c_str(), record.usageDay);
+  prefs.putInt(clientKey(index, "mon").c_str(), record.usageMonth);
 
   prefs.putBool(clientKey(index, "se").c_str(), record.scheduleEnabled);
   prefs.putUChar(clientKey(index, "sh").c_str(), record.scheduleStartHour);
@@ -458,12 +463,21 @@ size_t loadClientPolicies(ClientRecord* out, size_t maxCount) {
     record.dailyQuotaBytes =
       prefs.getULong64(clientKey(i, "q").c_str(), 0);
 
+    record.monthlyRxBytes =
+      prefs.getULong64(clientKey(i, "mr").c_str(), 0);
+    record.monthlyTxBytes =
+      prefs.getULong64(clientKey(i, "mt").c_str(), 0);
+    record.monthlyQuotaBytes =
+      prefs.getULong64(clientKey(i, "mq").c_str(), 0);
+
     record.bandwidthKbps =
       prefs.getUInt(clientKey(i, "bw").c_str(), 0);
     record.guestUntilEpoch =
       prefs.getUInt(clientKey(i, "gu").c_str(), 0);
     record.usageDay =
       prefs.getInt(clientKey(i, "day").c_str(), -1);
+    record.usageMonth =
+      prefs.getInt(clientKey(i, "mon").c_str(), -1);
 
     record.scheduleEnabled =
       prefs.getBool(clientKey(i, "se").c_str(), false);
@@ -617,7 +631,7 @@ String exportSafeSettings() {
 
   output.reserve(4096);
 
-  output += "RANGELINK32_BACKUP_V1\n";
+  output += "RANGELINK32_BACKUP_V2\n";
   output += "ap_ssid=" + getApSsid() + "\n";
   output += "admin_user=" + getAdminUser() + "\n";
   output += "timezone_minutes=" +
@@ -658,6 +672,11 @@ String exportSafeSettings() {
           clients[i].dailyQuotaBytes
         )
       ) + "|" +
+      String(
+        static_cast<unsigned long long>(
+          clients[i].monthlyQuotaBytes
+        )
+      ) + "|" +
       String(clients[i].bandwidthKbps) + "|" +
       String(
         clients[i].scheduleEnabled
@@ -678,11 +697,12 @@ String exportSafeSettings() {
 bool importSafeSettings(
   const String& text
 ) {
-  if (
-    !text.startsWith(
-      "RANGELINK32_BACKUP_V1"
-    )
-  ) {
+  const bool backupV1 =
+    text.startsWith("RANGELINK32_BACKUP_V1");
+  const bool backupV2 =
+    text.startsWith("RANGELINK32_BACKUP_V2");
+
+  if (!backupV1 && !backupV2) {
     return false;
   }
 
@@ -703,7 +723,9 @@ bool importSafeSettings(
       line.length() == 0 ||
       line.startsWith("#") ||
       line ==
-        "RANGELINK32_BACKUP_V1"
+        "RANGELINK32_BACKUP_V1" ||
+      line ==
+        "RANGELINK32_BACKUP_V2"
     ) {
       continue;
     }
@@ -746,14 +768,14 @@ bool importSafeSettings(
         )
       );
     } else if (key == "client") {
-      String parts[9];
+      String parts[10];
       int part = 0;
       int start = 0;
 
       for (
         int i = 0;
         i <= value.length() &&
-        part < 9;
+        part < 10;
         ++i
       ) {
         if (
@@ -783,19 +805,37 @@ bool importSafeSettings(
             nullptr,
             10
           );
+
+        const bool v2Client =
+          backupV2 && part >= 10;
+
+        record.monthlyQuotaBytes =
+          v2Client
+            ? strtoull(
+                parts[5].c_str(),
+                nullptr,
+                10
+              )
+            : 0;
+
+        const int bwIndex = v2Client ? 6 : 5;
+        const int enabledIndex = v2Client ? 7 : 6;
+        const int startIndex = v2Client ? 8 : 7;
+        const int endIndex = v2Client ? 9 : 8;
+
         record.bandwidthKbps =
           static_cast<uint32_t>(
-            parts[5].toInt()
+            parts[bwIndex].toInt()
           );
         record.scheduleEnabled =
-          parts[6].toInt() != 0;
+          parts[enabledIndex].toInt() != 0;
         record.scheduleStartHour =
           static_cast<uint8_t>(
-            parts[7].toInt()
+            parts[startIndex].toInt()
           );
         record.scheduleEndHour =
           static_cast<uint8_t>(
-            parts[8].toInt()
+            parts[endIndex].toInt()
           );
 
         saveClientPolicy(record);

@@ -27,6 +27,10 @@ struct TrafficSlot {
   uint64_t dailyTxBytes = 0;
   uint64_t dailyQuotaBytes = 0;
 
+  uint64_t monthlyRxBytes = 0;
+  uint64_t monthlyTxBytes = 0;
+  uint64_t monthlyQuotaBytes = 0;
+
   uint32_t bandwidthKbps = 0;
   uint32_t rateWindowStartMs = 0;
   uint32_t rateWindowBytes = 0;
@@ -153,6 +157,16 @@ bool consumeBudget(TrafficSlot& slot, uint16_t bytes, bool downlink) {
     return false;
   }
 
+  const uint64_t monthlyTotal =
+    slot.monthlyRxBytes + slot.monthlyTxBytes;
+
+  if (
+    slot.monthlyQuotaBytes > 0 &&
+    monthlyTotal + bytes > slot.monthlyQuotaBytes
+  ) {
+    return false;
+  }
+
   if (slot.bandwidthKbps > 0) {
     const uint32_t now = millis();
 
@@ -178,10 +192,12 @@ bool consumeBudget(TrafficSlot& slot, uint16_t bytes, bool downlink) {
   if (downlink) {
     slot.rxBytes += bytes;
     slot.dailyRxBytes += bytes;
+    slot.monthlyRxBytes += bytes;
     gatewayRxBytes += bytes;
   } else {
     slot.txBytes += bytes;
     slot.dailyTxBytes += bytes;
+    slot.monthlyTxBytes += bytes;
     gatewayTxBytes += bytes;
   }
 
@@ -314,17 +330,22 @@ void trafficMonitorConfigureClient(
       slot.rxBytes == 0 &&
       slot.txBytes == 0 &&
       slot.dailyRxBytes == 0 &&
-      slot.dailyTxBytes == 0;
+      slot.dailyTxBytes == 0 &&
+      slot.monthlyRxBytes == 0 &&
+      slot.monthlyTxBytes == 0;
 
     if (newlyEmpty) {
       slot.rxBytes = record.rxBytes;
       slot.txBytes = record.txBytes;
       slot.dailyRxBytes = record.dailyRxBytes;
       slot.dailyTxBytes = record.dailyTxBytes;
+      slot.monthlyRxBytes = record.monthlyRxBytes;
+      slot.monthlyTxBytes = record.monthlyTxBytes;
     }
 
     slot.internetAllowed = internetAllowed;
     slot.dailyQuotaBytes = record.dailyQuotaBytes;
+    slot.monthlyQuotaBytes = record.monthlyQuotaBytes;
     slot.bandwidthKbps = record.bandwidthKbps;
   }
 
@@ -336,7 +357,9 @@ bool trafficMonitorGetStats(
   uint64_t& rxBytes,
   uint64_t& txBytes,
   uint64_t& dailyRxBytes,
-  uint64_t& dailyTxBytes
+  uint64_t& dailyTxBytes,
+  uint64_t& monthlyRxBytes,
+  uint64_t& monthlyTxBytes
 ) {
   uint8_t mac[6];
   if (!parseMac(macText, mac)) return false;
@@ -353,6 +376,8 @@ bool trafficMonitorGetStats(
     txBytes = slot.txBytes;
     dailyRxBytes = slot.dailyRxBytes;
     dailyTxBytes = slot.dailyTxBytes;
+    monthlyRxBytes = slot.monthlyRxBytes;
+    monthlyTxBytes = slot.monthlyTxBytes;
 
     found = true;
   }
@@ -385,6 +410,29 @@ bool trafficMonitorResetUsage(
       slot.txBytes = 0;
     }
 
+    found = true;
+  }
+
+  portEXIT_CRITICAL(&trafficMux);
+
+  return found;
+}
+
+bool trafficMonitorResetMonthlyUsage(
+  const String& macText
+) {
+  uint8_t mac[6];
+  if (!parseMac(macText, mac)) return false;
+
+  bool found = false;
+
+  portENTER_CRITICAL(&trafficMux);
+
+  const int index = findSlotByMac(mac);
+  if (index >= 0) {
+    TrafficSlot& slot = slots[index];
+    slot.monthlyRxBytes = 0;
+    slot.monthlyTxBytes = 0;
     found = true;
   }
 

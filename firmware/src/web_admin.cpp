@@ -61,7 +61,7 @@ section{margin-top:14px}.btn{display:inline-block;border:0;border-radius:10px;pa
 input,select{width:100%;background:#091623;border:1px solid var(--line);color:var(--text);border-radius:10px;padding:11px;margin:6px 0}
 .row{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;border-bottom:1px solid var(--line);padding:13px 0}.row:last-child{border-bottom:0}
 .meta{color:var(--muted);font-size:.78rem;margin-top:4px}.actions{display:flex;gap:7px;flex-wrap:wrap}
-.client-tools{display:grid;grid-template-columns:repeat(2,minmax(180px,1fr));gap:8px;margin-top:10px}.client-tools form{border:1px solid var(--line);border-radius:12px;padding:9px;background:#091623}
+.limit-row{display:grid;grid-template-columns:1fr 92px;gap:8px;align-items:center}.client-tools{display:grid;grid-template-columns:repeat(2,minmax(180px,1fr));gap:8px;margin-top:10px}.client-tools form{border:1px solid var(--line);border-radius:12px;padding:9px;background:#091623}
 .client-tools label{display:block;color:var(--muted);font-size:.72rem;margin-top:4px}.client-tools .btn{width:100%;margin-top:5px}
 small{color:var(--muted);line-height:1.5}@media(max-width:850px){.grid{grid-template-columns:1fr 1fr}}@media(max-width:430px){.grid{grid-template-columns:1fr}.row{align-items:flex-start;flex-direction:column}}
 </style></head><body><main class="wrap">
@@ -251,7 +251,9 @@ async function loadClients(){
   box.innerHTML=data.length?data.map(c=>{
     const total=c.rxBytes+c.txBytes;
     const daily=c.dailyRxBytes+c.dailyTxBytes;
-    const quota=c.dailyQuotaBytes?bytes(c.dailyQuotaBytes):'Unlimited';
+    const monthly=c.monthlyRxBytes+c.monthlyTxBytes;
+    const dailyQuota=c.dailyQuotaBytes?bytes(c.dailyQuotaBytes):'Unlimited';
+    const monthlyQuota=c.monthlyQuotaBytes?bytes(c.monthlyQuotaBytes):'Unlimited';
     const speed=c.bandwidthKbps?c.bandwidthKbps+' kbps':'Unlimited';
 
     return `
@@ -260,7 +262,8 @@ async function loadClients(){
         <b>${esc(c.hostname||c.mac)}</b>
         <div class="meta">${esc(c.mac)} · ${c.connected?'Connected':'Previously seen'} · IP ${esc(c.ip||'—')}${c.connected?' · '+c.rssi+' dBm':''}</div>
         <div class="meta">Internet: <b>${c.allowed?'Allowed':'Blocked'}</b>${c.guest?' · Guest access active':''}</div>
-        <div class="meta">Today: ${bytes(daily)} / ${quota} · Total: ${bytes(total)} · Speed cap: ${speed}</div>
+        <div class="meta">Today: ${bytes(daily)} / ${dailyQuota} · This month: ${bytes(monthly)} / ${monthlyQuota}</div>
+        <div class="meta">Total: ${bytes(total)} · Speed cap: ${speed}</div>
         <div class="meta">Schedule: ${c.scheduleEnabled?(c.scheduleStart+':00–'+c.scheduleEnd+':00'):'Always'}</div>
 
         <div class="client-tools">
@@ -273,10 +276,25 @@ async function loadClients(){
 
           <form method="post" action="/client/limits">
             <input type="hidden" name="mac" value="${esc(c.mac)}">
-            <label>Daily quota in MB (0 = unlimited)</label>
-            <input name="quotaMB" type="number" min="0" value="${Math.round((c.dailyQuotaBytes||0)/1048576)}">
-            <label>Bandwidth cap kbps (0 = unlimited)</label>
-            <input name="kbps" type="number" min="0" value="${c.bandwidthKbps||0}">
+
+            <label>Daily data limit (0 = unlimited)</label>
+            <div class="limit-row">
+              <input name="dailyLimit" type="number" min="0" step="0.1" value="${((c.dailyQuotaBytes||0)/1048576).toFixed(1)}">
+              <select name="dailyUnit"><option value="MB">MB</option><option value="GB">GB</option></select>
+            </div>
+
+            <label>Monthly data limit (0 = unlimited)</label>
+            <div class="limit-row">
+              <input name="monthlyLimit" type="number" min="0" step="0.1" value="${((c.monthlyQuotaBytes||0)/1048576).toFixed(1)}">
+              <select name="monthlyUnit"><option value="MB">MB</option><option value="GB">GB</option></select>
+            </div>
+
+            <label>Speed limit (0 = unlimited)</label>
+            <div class="limit-row">
+              <input name="speedLimit" type="number" min="0" step="0.1" value="${c.bandwidthKbps||0}">
+              <select name="speedUnit"><option value="Kbps">Kbps</option><option value="Mbps">Mbps</option></select>
+            </div>
+
             <button class="btn secondary">Save Limits</button>
           </form>
 
@@ -316,6 +334,11 @@ async function loadClients(){
           <input type="hidden" name="mac" value="${esc(c.mac)}">
           <input type="hidden" name="total" value="0">
           <button class="btn secondary">Reset Today</button>
+        </form>
+
+        <form method="post" action="/client/reset-monthly">
+          <input type="hidden" name="mac" value="${esc(c.mac)}">
+          <button class="btn secondary">Reset Month</button>
         </form>
 
         <form method="post" action="/client/reset-usage" onsubmit="return confirm('Reset all saved usage for this device?')">
@@ -558,19 +581,53 @@ void webAdminBegin() {
   server.on("/client/limits", HTTP_POST, []() {
     if (!requireAdmin()) return;
 
-    const uint64_t quotaMB =
-      static_cast<uint64_t>(
-        server.arg("quotaMB").toInt()
-      );
+    const double dailyValue =
+      server.arg("dailyLimit").toFloat();
+    const double monthlyValue =
+      server.arg("monthlyLimit").toFloat();
+    const double speedValue =
+      server.arg("speedLimit").toFloat();
+
+    const uint64_t dailyMultiplier =
+      server.arg("dailyUnit") == "GB"
+        ? 1024ULL * 1024ULL * 1024ULL
+        : 1024ULL * 1024ULL;
+
+    const uint64_t monthlyMultiplier =
+      server.arg("monthlyUnit") == "GB"
+        ? 1024ULL * 1024ULL * 1024ULL
+        : 1024ULL * 1024ULL;
+
+    const double speedMultiplier =
+      server.arg("speedUnit") == "Mbps"
+        ? 1000.0
+        : 1.0;
+
+    const uint64_t dailyBytes =
+      dailyValue <= 0
+        ? 0
+        : static_cast<uint64_t>(
+            dailyValue * dailyMultiplier
+          );
+
+    const uint64_t monthlyBytes =
+      monthlyValue <= 0
+        ? 0
+        : static_cast<uint64_t>(
+            monthlyValue * monthlyMultiplier
+          );
 
     const uint32_t kbps =
-      static_cast<uint32_t>(
-        server.arg("kbps").toInt()
-      );
+      speedValue <= 0
+        ? 0
+        : static_cast<uint32_t>(
+            speedValue * speedMultiplier
+          );
 
     setClientLimits(
       server.arg("mac"),
-      quotaMB * 1024ULL * 1024ULL,
+      dailyBytes,
+      monthlyBytes,
       kbps
     );
 
@@ -635,6 +692,17 @@ void webAdminBegin() {
       );
       return;
     }
+
+    server.sendHeader("Location", "/");
+    server.send(303);
+  });
+
+  server.on("/client/reset-monthly", HTTP_POST, []() {
+    if (!requireAdmin()) return;
+
+    resetClientMonthlyUsage(
+      server.arg("mac")
+    );
 
     server.sendHeader("Location", "/");
     server.send(303);

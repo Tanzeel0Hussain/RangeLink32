@@ -28,7 +28,7 @@ RangeLink32 is a managed 2.4 GHz Wi-Fi extender/gateway for a classic **ESP32U w
 - Allow-all and allowlisted-only policies
 - Internet-only client blocking while local management remains available
 - Per-device download/upload, daily usage and total usage
-- Daily data quota and approximate per-device bandwidth cap
+- Daily and monthly data quotas plus approximate per-device bandwidth cap
 - Daily Internet schedules and temporary guest access
 - Internet health checks, event logs and watchdog recovery
 - Smart Placement Assistant and 2.4 GHz channel-congestion analysis

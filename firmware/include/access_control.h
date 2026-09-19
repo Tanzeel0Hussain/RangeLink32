@@ -19,6 +19,7 @@ bool setClientName(const String& mac, const String& name);
 bool setClientLimits(
   const String& mac,
   uint64_t dailyQuotaBytes,
+  uint64_t monthlyQuotaBytes,
   uint32_t bandwidthKbps
 );
 bool setClientSchedule(
@@ -29,6 +30,7 @@ bool setClientSchedule(
 );
 bool grantGuestAccess(const String& mac, uint32_t minutes);
 bool resetClientUsage(const String& mac, bool resetTotal);
+bool resetClientMonthlyUsage(const String& mac);
 
 bool clientMayUseInternet(const String& mac);
 String getClientTableJson();

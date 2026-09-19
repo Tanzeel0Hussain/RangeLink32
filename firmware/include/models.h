@@ -23,9 +23,14 @@ struct ClientRecord {
   uint64_t dailyTxBytes = 0;
   uint64_t dailyQuotaBytes = 0;
 
+  uint64_t monthlyRxBytes = 0;
+  uint64_t monthlyTxBytes = 0;
+  uint64_t monthlyQuotaBytes = 0;
+
   uint32_t bandwidthKbps = 0;
   uint32_t guestUntilEpoch = 0;
   int32_t usageDay = -1;
+  int32_t usageMonth = -1;
 
   uint8_t scheduleStartHour = 0;
   uint8_t scheduleEndHour = 24;

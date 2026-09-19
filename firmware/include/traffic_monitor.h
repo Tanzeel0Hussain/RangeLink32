@@ -16,10 +16,13 @@ bool trafficMonitorGetStats(
   uint64_t& rxBytes,
   uint64_t& txBytes,
   uint64_t& dailyRxBytes,
-  uint64_t& dailyTxBytes
+  uint64_t& dailyTxBytes,
+  uint64_t& monthlyRxBytes,
+  uint64_t& monthlyTxBytes
 );
 
 bool trafficMonitorResetUsage(const String& mac, bool resetTotal);
+bool trafficMonitorResetMonthlyUsage(const String& mac);
 void trafficMonitorGetTotals(
   uint64_t& rxBytes,
   uint64_t& txBytes
