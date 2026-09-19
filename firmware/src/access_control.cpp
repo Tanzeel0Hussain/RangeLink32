@@ -296,7 +296,32 @@ ClientRecord policyFor(const String& mac) {
   return record;
 }
 
+bool runtimeStateChanged(
+  const ClientRecord& current,
+  const ClientRecord& persisted
+) {
+  return
+    current.rxBytes != persisted.rxBytes ||
+    current.txBytes != persisted.txBytes ||
+    current.dailyRxBytes != persisted.dailyRxBytes ||
+    current.dailyTxBytes != persisted.dailyTxBytes ||
+    current.monthlyRxBytes != persisted.monthlyRxBytes ||
+    current.monthlyTxBytes != persisted.monthlyTxBytes ||
+    current.usageDay != persisted.usageDay ||
+    current.usageMonth != persisted.usageMonth;
+}
+
 void persistRuntimeStats() {
+  ClientRecord persisted[
+    RangeLinkConfig::MAX_CLIENT_RECORDS
+  ];
+
+  const size_t persistedCount =
+    loadClientPolicies(
+      persisted,
+      RangeLinkConfig::MAX_CLIENT_RECORDS
+    );
+
   for (size_t i = 0; i < policyCount; ++i) {
     ClientRecord record = policies[i];
 
@@ -304,7 +329,26 @@ void persistRuntimeStats() {
     resetDailyIfNeeded(record);
     resetMonthlyIfNeeded(record);
 
-    saveClientPolicy(record);
+    const ClientRecord* saved = nullptr;
+
+    for (size_t p = 0; p < persistedCount; ++p) {
+      if (
+        persisted[p].mac.equalsIgnoreCase(
+          record.mac
+        )
+      ) {
+        saved = &persisted[p];
+        break;
+      }
+    }
+
+    if (
+      !saved ||
+      runtimeStateChanged(record, *saved)
+    ) {
+      saveClientPolicy(record);
+    }
+
     policies[i] = record;
   }
 
