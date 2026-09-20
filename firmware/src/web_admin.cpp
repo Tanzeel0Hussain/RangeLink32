@@ -9,6 +9,7 @@
 #include "router_engine.h"
 #include "storage.h"
 #include "access_control.h"
+#include "text_utils.h"
 
 namespace {
 WebServer server(80);
@@ -166,7 +167,7 @@ button{width:100%;margin-top:18px;border:0;border-radius:11px;padding:13px;backg
   html += R"HTML(">
 <label>RangeLink32 Wi-Fi name</label>
 <input name="ssid" maxlength="32" value=")HTML";
-  html += getApSsid();
+  html += RangeLinkText::htmlEscape(getApSsid());
   html += R"HTML(" required>
 <label>New Wi-Fi password (8–63 characters)</label>
 <input name="ap_password" type="password" minlength="8" maxlength="63" autocomplete="new-password" required>
@@ -216,7 +217,9 @@ small{color:var(--muted);line-height:1.5}@media(max-width:850px){.grid{grid-temp
   html += "<div class='card'><div class='k'>Upstream</div><div class='v'>" +
           String(s.upstreamConnected ? "Connected" : "Disconnected") + "</div></div>";
   html += "<div class='card'><div class='k'>Network</div><div class='v'>" +
-          String(s.upstreamSsid.length() ? s.upstreamSsid : "—") + "</div></div>";
+          (s.upstreamSsid.length()
+            ? RangeLinkText::htmlEscape(s.upstreamSsid)
+            : String("—")) + "</div></div>";
   html += "<div class='card'><div class='k'>Signal</div><div class='v'>" +
           String(s.upstreamRssi) + " dBm</div></div>";
   html += "<div class='card'><div class='k'>Clients</div><div class='v'>" +
@@ -285,7 +288,7 @@ small{color:var(--muted);line-height:1.5}@media(max-width:850px){.grid{grid-temp
 <section class="card">
 <h3>RangeLink32 Hotspot Settings</h3>
 <form method="post" action="/settings/ap">
-<input name="ssid" value=")HTML" + getApSsid() + R"HTML(" placeholder="RangeLink32 Wi-Fi name" required>
+<input name="ssid" maxlength="32" value=")HTML" + RangeLinkText::htmlEscape(getApSsid()) + R"HTML(" placeholder="RangeLink32 Wi-Fi name" required>
 <input name="password" type="password" placeholder="New hotspot password (8–63 characters)" minlength="8" maxlength="63" required>
 <button class="btn" type="submit">Save & Restart</button>
 </form>
@@ -302,7 +305,7 @@ small{color:var(--muted);line-height:1.5}@media(max-width:850px){.grid{grid-temp
 <h3>DNS Settings</h3>
 <form method="post" action="/settings/dns">
 <label><small>Custom downstream DNS IPv4 address. Leave blank to use 1.1.1.1.</small></label>
-<input name="dns" value=")HTML" + getCustomDns() + R"HTML(" placeholder="e.g. 1.1.1.1">
+<input name="dns" value=")HTML" + RangeLinkText::htmlEscape(getCustomDns()) + R"HTML(" placeholder="e.g. 1.1.1.1">
 <button class="btn" type="submit">Save DNS & Restart</button>
 </form>
 </section>
@@ -319,7 +322,7 @@ small{color:var(--muted);line-height:1.5}@media(max-width:850px){.grid{grid-temp
 <section class="card">
 <h3>Admin Login Settings</h3>
 <form method="post" action="/settings/admin">
-<input name="username" maxlength="32" value=")HTML" + getAdminUser() + R"HTML(" placeholder="Admin username" required>
+<input name="username" maxlength="32" value=")HTML" + RangeLinkText::htmlEscape(getAdminUser()) + R"HTML(" placeholder="Admin username" required>
 <input name="password" type="password" placeholder="New admin password (8–64 characters)" minlength="8" maxlength="64" required>
 <button class="btn" type="submit">Change Admin Login</button>
 </form>
@@ -809,15 +812,13 @@ void webAdminBegin() {
       return;
     }
 
-    String safeSsid = server.arg("ssid");
-    safeSsid.replace("&", "&amp;");
-    safeSsid.replace("<", "&lt;");
-    safeSsid.replace(">", "&gt;");
+    const String safeSsid =
+      RangeLinkText::htmlEscape(
+        server.arg("ssid")
+      );
 
-    String safeSecret = secret;
-    safeSecret.replace("&", "&amp;");
-    safeSecret.replace("<", "&lt;");
-    safeSecret.replace(">", "&gt;");
+    const String safeSecret =
+      RangeLinkText::htmlEscape(secret);
 
     server.send(
       200,

@@ -13,6 +13,7 @@ extern "C" {
 #include "traffic_monitor.h"
 #include "config.h"
 #include "policy_logic.h"
+#include "text_utils.h"
 
 namespace {
 constexpr unsigned long CLIENT_REFRESH_MS = 2000;
@@ -43,10 +44,8 @@ String macToString(const uint8_t mac[6]) {
   return String(out);
 }
 
-String jsonEscape(String value) {
-  value.replace("\\", "\\\\");
-  value.replace("\"", "\\\"");
-  return value;
+String jsonEscape(const String& value) {
+  return RangeLinkText::jsonEscape(value);
 }
 
 int policyIndex(const String& mac) {

@@ -4,6 +4,7 @@
 #include "traffic_monitor.h"
 #include "config.h"
 #include "policy_logic.h"
+#include "text_utils.h"
 
 namespace {
 constexpr size_t MAX_SCAN_RESULTS = 32;
@@ -247,10 +248,8 @@ void checkInternetHealth() {
   }
 }
 
-String jsonEscape(String value) {
-  value.replace("\\", "\\\\");
-  value.replace("\"", "\\\"");
-  return value;
+String jsonEscape(const String& value) {
+  return RangeLinkText::jsonEscape(value);
 }
 
 int32_t scannedRssiFor(const String& ssid) {

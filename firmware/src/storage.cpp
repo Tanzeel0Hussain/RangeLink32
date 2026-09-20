@@ -2,18 +2,15 @@
 #include "storage.h"
 #include "config.h"
 #include "crypto_store.h"
+#include "text_utils.h"
 
 namespace {
 Preferences prefs;
 constexpr uint8_t MAX_EVENT_LOGS = 20;
 uint32_t bootSequence = 0;
 
-String jsonEscape(String value) {
-  value.replace("\\", "\\\\");
-  value.replace("\"", "\\\"");
-  value.replace("\n", " ");
-  value.replace("\r", " ");
-  return value;
+String jsonEscape(const String& value) {
+  return RangeLinkText::jsonEscape(value);
 }
 
 String logKey(size_t index) {
