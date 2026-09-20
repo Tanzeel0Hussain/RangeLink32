@@ -63,8 +63,11 @@ void updateDefaultInternetFallback() {
   // to persist and account for them. Once history is full, fail
   // closed so a 25th device cannot bypass quotas/accounting.
   trafficMonitorSetDefaultAllow(
-    mode == AccessMode::AllowAll &&
-    policyCount < RangeLinkConfig::MAX_CLIENT_RECORDS
+    RangeLinkLogic::unknownClientFallbackAllowed(
+      mode == AccessMode::AllowAll,
+      policyCount,
+      RangeLinkConfig::MAX_CLIENT_RECORDS
+    )
   );
 }
 
