@@ -58,12 +58,24 @@ int policyIndex(const String& mac) {
   return -1;
 }
 
+void updateDefaultInternetFallback() {
+  // Unknown/no-slot clients are allowed only while there is room
+  // to persist and account for them. Once history is full, fail
+  // closed so a 25th device cannot bypass quotas/accounting.
+  trafficMonitorSetDefaultAllow(
+    mode == AccessMode::AllowAll &&
+    policyCount < RangeLinkConfig::MAX_CLIENT_RECORDS
+  );
+}
+
 void reloadPolicies() {
   policyCount =
     loadClientPolicies(
       policies,
       RangeLinkConfig::MAX_CLIENT_RECORDS
     );
+
+  updateDefaultInternetFallback();
 }
 
 uint32_t currentEpoch() {
@@ -539,10 +551,6 @@ void accessControlBegin() {
       ? AccessMode::AllowlistOnly
       : AccessMode::AllowAll;
 
-  trafficMonitorSetDefaultAllow(
-    mode == AccessMode::AllowAll
-  );
-
   reloadPolicies();
   refreshClients();
 
@@ -589,9 +597,7 @@ void setAccessMode(AccessMode newMode) {
     static_cast<uint8_t>(newMode)
   );
 
-  trafficMonitorSetDefaultAllow(
-    newMode == AccessMode::AllowAll
-  );
+  updateDefaultInternetFallback();
 
   appendEventLog(
     "access",
