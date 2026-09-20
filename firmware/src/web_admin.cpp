@@ -1431,19 +1431,32 @@ void webAdminBegin() {
       escapeWifi(pass) +
       ";;";
 
-    constexpr uint8_t QR_VERSION = 6;
+    // Version 9 LOW holds up to 230 bytes in byte mode.
+    // Our validated 32-byte SSID + 63-byte password can expand
+    // to at most 208 bytes after Wi-Fi escaping.
+    constexpr uint8_t QR_VERSION = 9;
     std::vector<uint8_t> buffer(
       qrcode_getBufferSize(QR_VERSION)
     );
 
     QRCode qr;
-    qrcode_initText(
-      &qr,
-      buffer.data(),
-      QR_VERSION,
-      0,
-      payload.c_str()
-    );
+    const int8_t qrResult =
+      qrcode_initText(
+        &qr,
+        buffer.data(),
+        QR_VERSION,
+        ECC_LOW,
+        payload.c_str()
+      );
+
+    if (qrResult != 0) {
+      server.send(
+        500,
+        "text/plain",
+        "Could not generate Wi-Fi QR code."
+      );
+      return;
+    }
 
     const int quiet = 4;
     const int viewSize = qr.size + quiet * 2;
