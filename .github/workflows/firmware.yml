@@ -10,6 +10,7 @@ on:
       - ".github/workflows/firmware.yml"
       - "tests/**"
       - "VERSION"
+      - "manifest.json"
   pull_request:
     branches: [main]
     paths:
@@ -18,6 +19,7 @@ on:
       - ".github/workflows/firmware.yml"
       - "tests/**"
       - "VERSION"
+      - "manifest.json"
   workflow_dispatch:
 
 permissions:
@@ -256,7 +258,7 @@ jobs:
           NOTES=".github/releases/$TAG.md"
 
           if [ -f "$NOTES" ]; then
-            gh release create "$TAG"               --verify-tag               --title "RangeLink32 $TAG — Security & Reliability Update"               --notes-file "$NOTES"               --latest               "$RELEASE_DIR/rangelink32-full.bin"               "$RELEASE_DIR/rangelink32-ota.bin"               "$RELEASE_DIR/SHA256SUMS.txt"
+            gh release create "$TAG"               --verify-tag               --title "RangeLink32 $TAG"               --notes-file "$NOTES"               --latest               "$RELEASE_DIR/rangelink32-full.bin"               "$RELEASE_DIR/rangelink32-ota.bin"               "$RELEASE_DIR/SHA256SUMS.txt"
           else
             gh release create "$TAG"               --verify-tag               --title "RangeLink32 $TAG"               --generate-notes               --latest               "$RELEASE_DIR/rangelink32-full.bin"               "$RELEASE_DIR/rangelink32-ota.bin"               "$RELEASE_DIR/SHA256SUMS.txt"
           fi
