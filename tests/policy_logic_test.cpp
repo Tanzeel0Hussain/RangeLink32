@@ -25,6 +25,11 @@ int main() {
   assert(quotaAllowsPacket(100, 200, 350, 50));
   assert(!quotaAllowsPacket(100, 200, 350, 51));
 
+  // Unknown clients fail closed when persistent history is full.
+  assert(unknownClientFallbackAllowed(true, 23, 24));
+  assert(!unknownClientFallbackAllowed(true, 24, 24));
+  assert(!unknownClientFallbackAllowed(false, 0, 24));
+
   // Upstream credential validation.
   assert(validUpstreamSecret(true, 0));
   assert(!validUpstreamSecret(false, 0));
