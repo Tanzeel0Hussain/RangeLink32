@@ -36,14 +36,14 @@ bool updateWifiProfileUsage(
 );
 
 uint8_t getStoredAccessMode();
-void setStoredAccessMode(uint8_t mode);
+bool setStoredAccessMode(uint8_t mode);
 
 size_t loadClientPolicies(ClientRecord* out, size_t maxCount);
 bool saveClientPolicy(const ClientRecord& record);
 bool removeClientPolicy(const String& mac);
 
 int getTimezoneOffsetMinutes();
-void setTimezoneOffsetMinutes(int minutes);
+bool setTimezoneOffsetMinutes(int minutes);
 
 String getCustomDns();
 bool setCustomDns(const String& dns);
