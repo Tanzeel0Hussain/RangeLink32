@@ -10,6 +10,7 @@
 #include "storage.h"
 #include "access_control.h"
 #include "text_utils.h"
+#include "input_validation.h"
 
 namespace {
 WebServer server(80);
@@ -903,55 +904,126 @@ void webAdminBegin() {
   server.on("/client/limits", HTTP_POST, []() {
     if (!requireAdmin()) return;
 
-    const double dailyValue =
-      server.arg("dailyLimit").toFloat();
-    const double monthlyValue =
-      server.arg("monthlyLimit").toFloat();
-    const double speedValue =
-      server.arg("speedLimit").toFloat();
+    constexpr uint64_t MAX_DAILY_QUOTA_BYTES =
+      1024ULL * 1024ULL * 1024ULL * 1024ULL;
+    constexpr uint64_t MAX_MONTHLY_QUOTA_BYTES =
+      32ULL * 1024ULL * 1024ULL * 1024ULL * 1024ULL;
+    constexpr uint32_t MAX_BANDWIDTH_KBPS =
+      1000000UL;
+
+    const String dailyUnit =
+      server.arg("dailyUnit");
+    const String monthlyUnit =
+      server.arg("monthlyUnit");
+    const String speedUnit =
+      server.arg("speedUnit");
+
+    if (
+      (dailyUnit != "MB" && dailyUnit != "GB") ||
+      (monthlyUnit != "MB" && monthlyUnit != "GB") ||
+      (speedUnit != "Kbps" && speedUnit != "Mbps")
+    ) {
+      server.send(
+        400,
+        "text/plain",
+        "Invalid quota or speed unit."
+      );
+      return;
+    }
 
     const uint64_t dailyMultiplier =
-      server.arg("dailyUnit") == "GB"
+      dailyUnit == "GB"
         ? 1024ULL * 1024ULL * 1024ULL
         : 1024ULL * 1024ULL;
 
     const uint64_t monthlyMultiplier =
-      server.arg("monthlyUnit") == "GB"
+      monthlyUnit == "GB"
         ? 1024ULL * 1024ULL * 1024ULL
         : 1024ULL * 1024ULL;
 
     const double speedMultiplier =
-      server.arg("speedUnit") == "Mbps"
+      speedUnit == "Mbps"
         ? 1000.0
         : 1.0;
 
+    double dailyValue = 0.0;
+    double monthlyValue = 0.0;
+    double speedValue = 0.0;
+
+    const bool validDaily =
+      RangeLinkValidation::parseNonNegativeDecimal(
+        server.arg("dailyLimit").c_str(),
+        static_cast<double>(
+          MAX_DAILY_QUOTA_BYTES /
+          dailyMultiplier
+        ),
+        dailyValue
+      );
+
+    const bool validMonthly =
+      RangeLinkValidation::parseNonNegativeDecimal(
+        server.arg("monthlyLimit").c_str(),
+        static_cast<double>(
+          MAX_MONTHLY_QUOTA_BYTES /
+          monthlyMultiplier
+        ),
+        monthlyValue
+      );
+
+    const bool validSpeed =
+      RangeLinkValidation::parseNonNegativeDecimal(
+        server.arg("speedLimit").c_str(),
+        static_cast<double>(
+          MAX_BANDWIDTH_KBPS
+        ) / speedMultiplier,
+        speedValue
+      );
+
+    if (
+      !validDaily ||
+      !validMonthly ||
+      !validSpeed
+    ) {
+      server.send(
+        400,
+        "text/plain",
+        "Invalid limit. Daily quota max is 1 TB, monthly quota max is 32 TB, and speed max is 1000 Mbps."
+      );
+      return;
+    }
+
     const uint64_t dailyBytes =
-      dailyValue <= 0
-        ? 0
-        : static_cast<uint64_t>(
-            dailyValue * dailyMultiplier
-          );
+      static_cast<uint64_t>(
+        dailyValue *
+        static_cast<double>(dailyMultiplier)
+      );
 
     const uint64_t monthlyBytes =
-      monthlyValue <= 0
-        ? 0
-        : static_cast<uint64_t>(
-            monthlyValue * monthlyMultiplier
-          );
+      static_cast<uint64_t>(
+        monthlyValue *
+        static_cast<double>(monthlyMultiplier)
+      );
 
     const uint32_t kbps =
-      speedValue <= 0
-        ? 0
-        : static_cast<uint32_t>(
-            speedValue * speedMultiplier
-          );
+      static_cast<uint32_t>(
+        speedValue * speedMultiplier
+      );
 
-    setClientLimits(
-      server.arg("mac"),
-      dailyBytes,
-      monthlyBytes,
-      kbps
-    );
+    if (
+      !setClientLimits(
+        server.arg("mac"),
+        dailyBytes,
+        monthlyBytes,
+        kbps
+      )
+    ) {
+      server.send(
+        500,
+        "text/plain",
+        "Could not persist device limits."
+      );
+      return;
+    }
 
     server.sendHeader("Location", "/");
     server.send(303);
