@@ -103,6 +103,30 @@ jobs:
       - name: Build ESP32 firmware
         run: pio run -e esp32dev
 
+      - name: Enforce firmware size budget
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          app = Path(".pio/build/esp32dev/firmware.bin")
+          size = app.stat().st_size
+          partition_limit = 1_310_720
+          hard_limit = int(partition_limit * 0.90)
+
+          print(
+              f"Firmware binary: {size:,} bytes "
+              f"({size / partition_limit:.1%} of app partition)"
+          )
+
+          if size > hard_limit:
+              raise SystemExit(
+                  f"Firmware exceeds the 90% safety budget "
+                  f"({hard_limit:,} bytes). Reduce flash usage "
+                  f"before adding more features."
+              )
+          PY
+
       - name: Prepare browser and release firmware
         shell: bash
         run: |

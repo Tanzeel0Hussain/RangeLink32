@@ -319,8 +319,9 @@ RangeLink32/
 | Device policy / quota code | ✅ Implemented |
 | Physical ESP32U range test | ⏳ Required on real hardware |
 | Sustained throughput / long-duration stability | ⏳ Required on real hardware |
+| Firmware flash headroom | ✅ CI fails above 90% of the app partition |
 
-The software repository and deployment pipeline can be verified automatically. RF range, antenna behavior, real throughput and long-duration stability must be measured on the actual ESP32U hardware.
+The software repository and deployment pipeline can be verified automatically. RF range, antenna behavior, real throughput and long-duration stability must be measured on the actual ESP32U hardware. Use the reproducible [ESP32U Hardware Validation checklist](docs/HARDWARE_VALIDATION.md) as the final release gate.
 
 ---
 

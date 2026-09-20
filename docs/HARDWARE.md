@@ -18,3 +18,8 @@ RangeLink32's Smart Placement Assistant uses upstream RSSI as a guide:
 - below `-80 dBm`: move closer to the upstream router
 
 Actual range depends on antenna quality, orientation, walls, interference, channel congestion, regulatory transmit limits and power-supply quality.
+
+
+## Final validation
+
+Before calling a release hardware-validated, complete [ESP32U Hardware Validation](HARDWARE_VALIDATION.md). It covers first boot, NAPT, DNS, failover, device policy, quotas, schedules, OTA integrity, recovery, soak testing, and RF/range measurements.
