@@ -10,6 +10,7 @@
 #include "storage.h"
 #include "access_control.h"
 #include "text_utils.h"
+#include "input_validation.h"
 
 namespace {
 WebServer server(80);
@@ -846,7 +847,16 @@ void webAdminBegin() {
 
   server.on("/profile/forget", HTTP_POST, []() {
     if (!requireAdmin()) return;
-    forgetSavedProfile(server.arg("ssid"));
+
+    if (!forgetSavedProfile(server.arg("ssid"))) {
+      server.send(
+        500,
+        "text/plain",
+        "Could not remove the saved network."
+      );
+      return;
+    }
+
     server.sendHeader("Location", "/");
     server.send(303);
   });
@@ -854,11 +864,20 @@ void webAdminBegin() {
   server.on("/access/mode", HTTP_POST, []() {
     if (!requireAdmin()) return;
 
-    setAccessMode(
-      server.arg("mode") == "allowlist"
-        ? AccessMode::AllowlistOnly
-        : AccessMode::AllowAll
-    );
+    if (
+      !setAccessMode(
+        server.arg("mode") == "allowlist"
+          ? AccessMode::AllowlistOnly
+          : AccessMode::AllowAll
+      )
+    ) {
+      server.send(
+        500,
+        "text/plain",
+        "Could not persist access mode."
+      );
+      return;
+    }
 
     server.sendHeader("Location", "/");
     server.send(303);
@@ -867,10 +886,19 @@ void webAdminBegin() {
   server.on("/client/approve", HTTP_POST, []() {
     if (!requireAdmin()) return;
 
-    setClientApproval(
-      server.arg("mac"),
-      server.arg("approved") == "1"
-    );
+    if (
+      !setClientApproval(
+        server.arg("mac"),
+        server.arg("approved") == "1"
+      )
+    ) {
+      server.send(
+        500,
+        "text/plain",
+        "Could not persist device approval."
+      );
+      return;
+    }
 
     server.sendHeader("Location", "/");
     server.send(303);
@@ -879,10 +907,19 @@ void webAdminBegin() {
   server.on("/client/block", HTTP_POST, []() {
     if (!requireAdmin()) return;
 
-    setClientBlocked(
-      server.arg("mac"),
-      server.arg("blocked") == "1"
-    );
+    if (
+      !setClientBlocked(
+        server.arg("mac"),
+        server.arg("blocked") == "1"
+      )
+    ) {
+      server.send(
+        500,
+        "text/plain",
+        "Could not persist device block state."
+      );
+      return;
+    }
 
     server.sendHeader("Location", "/");
     server.send(303);
@@ -891,10 +928,19 @@ void webAdminBegin() {
   server.on("/client/name", HTTP_POST, []() {
     if (!requireAdmin()) return;
 
-    setClientName(
-      server.arg("mac"),
-      server.arg("name")
-    );
+    if (
+      !setClientName(
+        server.arg("mac"),
+        server.arg("name")
+      )
+    ) {
+      server.send(
+        500,
+        "text/plain",
+        "Could not persist device name."
+      );
+      return;
+    }
 
     server.sendHeader("Location", "/");
     server.send(303);
@@ -903,55 +949,126 @@ void webAdminBegin() {
   server.on("/client/limits", HTTP_POST, []() {
     if (!requireAdmin()) return;
 
-    const double dailyValue =
-      server.arg("dailyLimit").toFloat();
-    const double monthlyValue =
-      server.arg("monthlyLimit").toFloat();
-    const double speedValue =
-      server.arg("speedLimit").toFloat();
+    constexpr uint64_t MAX_DAILY_QUOTA_BYTES =
+      1024ULL * 1024ULL * 1024ULL * 1024ULL;
+    constexpr uint64_t MAX_MONTHLY_QUOTA_BYTES =
+      32ULL * 1024ULL * 1024ULL * 1024ULL * 1024ULL;
+    constexpr uint32_t MAX_BANDWIDTH_KBPS =
+      1000000UL;
+
+    const String dailyUnit =
+      server.arg("dailyUnit");
+    const String monthlyUnit =
+      server.arg("monthlyUnit");
+    const String speedUnit =
+      server.arg("speedUnit");
+
+    if (
+      (dailyUnit != "MB" && dailyUnit != "GB") ||
+      (monthlyUnit != "MB" && monthlyUnit != "GB") ||
+      (speedUnit != "Kbps" && speedUnit != "Mbps")
+    ) {
+      server.send(
+        400,
+        "text/plain",
+        "Invalid quota or speed unit."
+      );
+      return;
+    }
 
     const uint64_t dailyMultiplier =
-      server.arg("dailyUnit") == "GB"
+      dailyUnit == "GB"
         ? 1024ULL * 1024ULL * 1024ULL
         : 1024ULL * 1024ULL;
 
     const uint64_t monthlyMultiplier =
-      server.arg("monthlyUnit") == "GB"
+      monthlyUnit == "GB"
         ? 1024ULL * 1024ULL * 1024ULL
         : 1024ULL * 1024ULL;
 
     const double speedMultiplier =
-      server.arg("speedUnit") == "Mbps"
+      speedUnit == "Mbps"
         ? 1000.0
         : 1.0;
 
+    double dailyValue = 0.0;
+    double monthlyValue = 0.0;
+    double speedValue = 0.0;
+
+    const bool validDaily =
+      RangeLinkValidation::parseNonNegativeDecimal(
+        server.arg("dailyLimit").c_str(),
+        static_cast<double>(
+          MAX_DAILY_QUOTA_BYTES /
+          dailyMultiplier
+        ),
+        dailyValue
+      );
+
+    const bool validMonthly =
+      RangeLinkValidation::parseNonNegativeDecimal(
+        server.arg("monthlyLimit").c_str(),
+        static_cast<double>(
+          MAX_MONTHLY_QUOTA_BYTES /
+          monthlyMultiplier
+        ),
+        monthlyValue
+      );
+
+    const bool validSpeed =
+      RangeLinkValidation::parseNonNegativeDecimal(
+        server.arg("speedLimit").c_str(),
+        static_cast<double>(
+          MAX_BANDWIDTH_KBPS
+        ) / speedMultiplier,
+        speedValue
+      );
+
+    if (
+      !validDaily ||
+      !validMonthly ||
+      !validSpeed
+    ) {
+      server.send(
+        400,
+        "text/plain",
+        "Invalid limit. Daily quota max is 1 TB, monthly quota max is 32 TB, and speed max is 1000 Mbps."
+      );
+      return;
+    }
+
     const uint64_t dailyBytes =
-      dailyValue <= 0
-        ? 0
-        : static_cast<uint64_t>(
-            dailyValue * dailyMultiplier
-          );
+      static_cast<uint64_t>(
+        dailyValue *
+        static_cast<double>(dailyMultiplier)
+      );
 
     const uint64_t monthlyBytes =
-      monthlyValue <= 0
-        ? 0
-        : static_cast<uint64_t>(
-            monthlyValue * monthlyMultiplier
-          );
+      static_cast<uint64_t>(
+        monthlyValue *
+        static_cast<double>(monthlyMultiplier)
+      );
 
     const uint32_t kbps =
-      speedValue <= 0
-        ? 0
-        : static_cast<uint32_t>(
-            speedValue * speedMultiplier
-          );
+      static_cast<uint32_t>(
+        speedValue * speedMultiplier
+      );
 
-    setClientLimits(
-      server.arg("mac"),
-      dailyBytes,
-      monthlyBytes,
-      kbps
-    );
+    if (
+      !setClientLimits(
+        server.arg("mac"),
+        dailyBytes,
+        monthlyBytes,
+        kbps
+      )
+    ) {
+      server.send(
+        500,
+        "text/plain",
+        "Could not persist device limits."
+      );
+      return;
+    }
 
     server.sendHeader("Location", "/");
     server.send(303);
@@ -982,12 +1099,21 @@ void webAdminBegin() {
       return;
     }
 
-    setClientSchedule(
-      server.arg("mac"),
-      enabled,
-      static_cast<uint8_t>(start),
-      static_cast<uint8_t>(end)
-    );
+    if (
+      !setClientSchedule(
+        server.arg("mac"),
+        enabled,
+        static_cast<uint8_t>(start),
+        static_cast<uint8_t>(end)
+      )
+    ) {
+      server.send(
+        500,
+        "text/plain",
+        "Could not persist device schedule."
+      );
+      return;
+    }
 
     server.sendHeader("Location", "/");
     server.send(303);
@@ -1022,9 +1148,18 @@ void webAdminBegin() {
   server.on("/client/reset-monthly", HTTP_POST, []() {
     if (!requireAdmin()) return;
 
-    resetClientMonthlyUsage(
-      server.arg("mac")
-    );
+    if (
+      !resetClientMonthlyUsage(
+        server.arg("mac")
+      )
+    ) {
+      server.send(
+        500,
+        "text/plain",
+        "Could not persist monthly usage reset."
+      );
+      return;
+    }
 
     server.sendHeader("Location", "/");
     server.send(303);
@@ -1033,10 +1168,19 @@ void webAdminBegin() {
   server.on("/client/reset-usage", HTTP_POST, []() {
     if (!requireAdmin()) return;
 
-    resetClientUsage(
-      server.arg("mac"),
-      server.arg("total") == "1"
-    );
+    if (
+      !resetClientUsage(
+        server.arg("mac"),
+        server.arg("total") == "1"
+      )
+    ) {
+      server.send(
+        500,
+        "text/plain",
+        "Could not persist usage reset."
+      );
+      return;
+    }
 
     server.sendHeader("Location", "/");
     server.send(303);
@@ -1171,7 +1315,15 @@ void webAdminBegin() {
       return;
     }
 
-    setTimezoneOffsetMinutes(minutes);
+    if (!setTimezoneOffsetMinutes(minutes)) {
+      server.send(
+        500,
+        "text/plain",
+        "Could not persist timezone setting."
+      );
+      return;
+    }
+
     appendEventLog(
       "settings",
       "Timezone changed to UTC offset " +
@@ -1431,19 +1583,32 @@ void webAdminBegin() {
       escapeWifi(pass) +
       ";;";
 
-    constexpr uint8_t QR_VERSION = 6;
+    // Version 9 LOW holds up to 230 bytes in byte mode.
+    // Our validated 32-byte SSID + 63-byte password can expand
+    // to at most 208 bytes after Wi-Fi escaping.
+    constexpr uint8_t QR_VERSION = 9;
     std::vector<uint8_t> buffer(
       qrcode_getBufferSize(QR_VERSION)
     );
 
     QRCode qr;
-    qrcode_initText(
-      &qr,
-      buffer.data(),
-      QR_VERSION,
-      0,
-      payload.c_str()
-    );
+    const int8_t qrResult =
+      qrcode_initText(
+        &qr,
+        buffer.data(),
+        QR_VERSION,
+        ECC_LOW,
+        payload.c_str()
+      );
+
+    if (qrResult != 0) {
+      server.send(
+        500,
+        "text/plain",
+        "Could not generate Wi-Fi QR code."
+      );
+      return;
+    }
 
     const int quiet = 4;
     const int viewSize = qr.size + quiet * 2;

@@ -57,6 +57,17 @@ inline bool quotaAllowsPacket(
       quotaBytes;
 }
 
+inline bool unknownClientFallbackAllowed(
+  bool allowAllMode,
+  size_t storedClientCount,
+  size_t maxClientRecords
+) {
+  return
+    allowAllMode &&
+    storedClientCount <
+      maxClientRecords;
+}
+
 inline bool validUpstreamSecret(
   bool openNetwork,
   size_t passwordLength

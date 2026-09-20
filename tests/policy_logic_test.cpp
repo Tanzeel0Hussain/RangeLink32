@@ -1,6 +1,7 @@
 #include <cassert>
 #include <iostream>
 #include "policy_logic.h"
+#include "input_validation.h"
 
 int main() {
   using namespace RangeLinkLogic;
@@ -24,6 +25,11 @@ int main() {
   assert(quotaAllowsPacket(100, 200, 350, 50));
   assert(!quotaAllowsPacket(100, 200, 350, 51));
 
+  // Unknown clients fail closed when persistent history is full.
+  assert(unknownClientFallbackAllowed(true, 23, 24));
+  assert(!unknownClientFallbackAllowed(true, 24, 24));
+  assert(!unknownClientFallbackAllowed(false, 0, 24));
+
   // Upstream credential validation.
   assert(validUpstreamSecret(true, 0));
   assert(!validUpstreamSecret(false, 0));
@@ -31,6 +37,40 @@ int main() {
   assert(validUpstreamSecret(false, 8));
   assert(validUpstreamSecret(false, 63));
   assert(!validUpstreamSecret(false, 64));
+
+  // Strict numeric parsing for quota/speed forms.
+  double parsed = 0.0;
+  assert(
+    RangeLinkValidation::parseNonNegativeDecimal(
+      "10.5", 100.0, parsed
+    )
+  );
+  assert(parsed > 10.49 && parsed < 10.51);
+  assert(
+    RangeLinkValidation::parseNonNegativeDecimal(
+      "0", 100.0, parsed
+    )
+  );
+  assert(
+    !RangeLinkValidation::parseNonNegativeDecimal(
+      "6abc", 100.0, parsed
+    )
+  );
+  assert(
+    !RangeLinkValidation::parseNonNegativeDecimal(
+      "-1", 100.0, parsed
+    )
+  );
+  assert(
+    !RangeLinkValidation::parseNonNegativeDecimal(
+      "101", 100.0, parsed
+    )
+  );
+  assert(
+    !RangeLinkValidation::parseNonNegativeDecimal(
+      "1e3", 10000.0, parsed
+    )
+  );
 
   // Failover priority wins first; RSSI breaks equal-priority ties.
   assert(profileIsBetter(100, -80, false, 0, -127));
