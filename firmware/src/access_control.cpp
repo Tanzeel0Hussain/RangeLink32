@@ -574,6 +574,10 @@ void accessControlFlush() {
   persistRuntimeStats();
 }
 
+bool accessControlTimeSynchronized() {
+  return currentEpoch() != 0;
+}
+
 AccessMode getAccessMode() {
   return mode;
 }

@@ -13,7 +13,8 @@ inline bool scheduleAllowsHour(
   if (!enabled) return true;
 
   // 255 means time is not synchronized yet.
-  if (currentHour == 255) return true;
+  // Scheduled access fails closed until trusted time is available.
+  if (currentHour == 255) return false;
 
   const uint8_t start =
     startHour > 23 ? 23 : startHour;

@@ -8,6 +8,7 @@ String getApSsid();
 String getApPassword();
 String getAdminUser();
 String getAdminPassword();
+bool credentialRecoveryRequired();
 
 bool setApCredentials(const String& ssid, const String& password);
 bool setAdminCredentials(const String& username, const String& password);

@@ -10,6 +10,7 @@ enum class AccessMode : uint8_t {
 void accessControlBegin();
 void accessControlLoop();
 void accessControlFlush();
+bool accessControlTimeSynchronized();
 
 AccessMode getAccessMode();
 void setAccessMode(AccessMode mode);

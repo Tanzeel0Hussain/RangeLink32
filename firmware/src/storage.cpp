@@ -1,4 +1,5 @@
 #include <Preferences.h>
+#include <esp_system.h>
 #include "storage.h"
 #include "config.h"
 #include "crypto_store.h"
@@ -8,6 +9,88 @@ namespace {
 Preferences prefs;
 constexpr uint8_t MAX_EVENT_LOGS = 20;
 uint32_t bootSequence = 0;
+
+bool credentialRecoveryMode = false;
+String recoveryApSsid;
+String recoveryApPassword;
+String recoveryAdminPassword;
+
+String randomRecoveryPassword(size_t length) {
+  static const char alphabet[] =
+    "ABCDEFGHJKLMNPQRSTUVWXYZ"
+    "abcdefghijkmnopqrstuvwxyz"
+    "23456789";
+
+  String password;
+  password.reserve(length);
+
+  for (size_t i = 0; i < length; ++i) {
+    password += alphabet[
+      esp_random() % (sizeof(alphabet) - 1)
+    ];
+  }
+
+  return password;
+}
+
+void ensureRecoveryCredentials() {
+  if (
+    recoveryApPassword.length() >= 12 &&
+    recoveryAdminPassword.length() >= 12
+  ) {
+    return;
+  }
+
+  const uint64_t chipId = ESP.getEfuseMac();
+
+  char suffix[9];
+  snprintf(
+    suffix,
+    sizeof(suffix),
+    "%08lX",
+    static_cast<unsigned long>(
+      chipId & 0xFFFFFFFFULL
+    )
+  );
+
+  recoveryApSsid =
+    "RangeLink32-Recovery-" +
+    String(suffix).substring(4);
+
+  recoveryApPassword =
+    randomRecoveryPassword(16);
+
+  recoveryAdminPassword =
+    randomRecoveryPassword(18);
+}
+
+void enterCredentialRecoveryMode(
+  const String& reason
+) {
+  if (credentialRecoveryMode) return;
+
+  credentialRecoveryMode = true;
+  ensureRecoveryCredentials();
+
+  Serial.println();
+  Serial.println(
+    "=== RangeLink32 credential recovery ==="
+  );
+  Serial.println(reason);
+  Serial.print("Recovery Wi-Fi: ");
+  Serial.println(recoveryApSsid);
+  Serial.print("Recovery Wi-Fi password: ");
+  Serial.println(recoveryApPassword);
+  Serial.println("Recovery admin username: admin");
+  Serial.print("Recovery admin password: ");
+  Serial.println(recoveryAdminPassword);
+  Serial.println(
+    "Open http://192.168.50.1 and set new credentials."
+  );
+  Serial.println(
+    "======================================="
+  );
+}
 
 String jsonEscape(const String& value) {
   return RangeLinkText::jsonEscape(value);
@@ -221,42 +304,91 @@ void storageBegin() {
       }
     }
   }
+
+  const String storedAp =
+    prefs.getString("ap_pass", "");
+
+  const String storedAdmin =
+    prefs.getString("admin_pass", "");
+
+  if (
+    storedAp.length() == 0 ||
+    storedAdmin.length() == 0 ||
+    unprotectSecret(storedAp).length() == 0 ||
+    unprotectSecret(storedAdmin).length() == 0
+  ) {
+    enterCredentialRecoveryMode(
+      "Stored hotspot/admin credentials could not be decrypted safely."
+    );
+  }
 }
 
+
 String getApSsid() {
-  return prefs.getString("ap_ssid", RangeLinkConfig::DEFAULT_AP_SSID);
+  if (credentialRecoveryMode) {
+    ensureRecoveryCredentials();
+    return recoveryApSsid;
+  }
+
+  return prefs.getString(
+    "ap_ssid",
+    RangeLinkConfig::DEFAULT_AP_SSID
+  );
 }
 
 String getApPassword() {
+  if (credentialRecoveryMode) {
+    ensureRecoveryCredentials();
+    return recoveryApPassword;
+  }
+
   const String stored =
     prefs.getString("ap_pass", "");
 
   const String plain =
     unprotectSecret(stored);
 
-  return plain.length()
-    ? plain
-    : String(
-        RangeLinkConfig::DEFAULT_AP_PASSWORD
-      );
+  if (plain.length()) return plain;
+
+  enterCredentialRecoveryMode(
+    "Hotspot credential decryption failed."
+  );
+  return recoveryApPassword;
 }
 
 String getAdminUser() {
-  return prefs.getString("admin_user", RangeLinkConfig::DEFAULT_ADMIN_USER);
+  if (credentialRecoveryMode) {
+    return "admin";
+  }
+
+  return prefs.getString(
+    "admin_user",
+    RangeLinkConfig::DEFAULT_ADMIN_USER
+  );
 }
 
 String getAdminPassword() {
+  if (credentialRecoveryMode) {
+    ensureRecoveryCredentials();
+    return recoveryAdminPassword;
+  }
+
   const String stored =
     prefs.getString("admin_pass", "");
 
   const String plain =
     unprotectSecret(stored);
 
-  return plain.length()
-    ? plain
-    : String(
-        RangeLinkConfig::DEFAULT_ADMIN_PASSWORD
-      );
+  if (plain.length()) return plain;
+
+  enterCredentialRecoveryMode(
+    "Administrator credential decryption failed."
+  );
+  return recoveryAdminPassword;
+}
+
+bool credentialRecoveryRequired() {
+  return credentialRecoveryMode;
 }
 
 bool setApCredentials(const String& ssid, const String& password) {
@@ -319,6 +451,8 @@ bool setAdminCredentials(const String& username, const String& password) {
 
 
 bool initialSetupRequired() {
+  if (credentialRecoveryMode) return true;
+
   return
     getApPassword() ==
       RangeLinkConfig::DEFAULT_AP_PASSWORD ||
@@ -366,6 +500,11 @@ bool setInitialCredentials(
   prefs.putString("ap_pass", protectedAp);
   prefs.putString("admin_user", adminUser);
   prefs.putString("admin_pass", protectedAdmin);
+
+  credentialRecoveryMode = false;
+  recoveryApSsid = "";
+  recoveryApPassword = "";
+  recoveryAdminPassword = "";
 
   return true;
 }
@@ -1078,4 +1217,16 @@ bool importSafeSettings(
 
 void factoryResetStorage() {
   prefs.clear();
+
+  Preferences securePrefs;
+
+  if (securePrefs.begin("rl32-sec", false)) {
+    securePrefs.clear();
+    securePrefs.end();
+  }
+
+  credentialRecoveryMode = false;
+  recoveryApSsid = "";
+  recoveryApPassword = "";
+  recoveryAdminPassword = "";
 }

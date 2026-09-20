@@ -14,7 +14,7 @@ int main() {
   assert(scheduleAllowsHour(true, 22, 6, 5));
   assert(!scheduleAllowsHour(true, 22, 6, 12));
   assert(scheduleAllowsHour(true, 8, 8, 12));
-  assert(scheduleAllowsHour(true, 8, 20, 255));
+  assert(!scheduleAllowsHour(true, 8, 20, 255));
 
   // Quotas: unlimited, below limit, exact boundary and next-packet overflow.
   assert(!quotaReached(100, 200, 0));

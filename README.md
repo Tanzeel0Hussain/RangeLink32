@@ -267,6 +267,10 @@ The hotspot password and admin password can be changed independently from the lo
 
 Saved upstream Wi-Fi credentials, the RangeLink32 hotspot password and the admin password are stored in AES-GCM protected application form using a random per-device master secret that is generated on first boot and mixed with the chip identity. Saved upstream secrets are not included in the normal profile API or safe settings backup, and revealing a saved upstream password requires administrator re-authentication.
 
+If stored hotspot/admin credentials cannot be decrypted, RangeLink32 does **not** silently fall back to the public factory passwords. It enters a serial-assisted recovery mode with random per-boot Wi-Fi and admin credentials, then requires new credentials through the security setup page. A factory reset also clears the application credential master key so the next boot creates a fresh key.
+
+Scheduled Internet access fails closed until NTP time is synchronized, preventing a reboot or time outage from accidentally bypassing a configured schedule.
+
 For stronger resistance to physical flash extraction, ESP32 Secure Boot and hardware flash encryption are separate hardening layers that can be added depending on deployment requirements.
 
 ---

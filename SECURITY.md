@@ -8,7 +8,7 @@ The maintained firmware stores the hotspot password, administrator password and 
 
 Saved Wi-Fi passwords are excluded from the normal profile API and safe configuration backup. Password reveal requires administrator authentication plus re-entry of the administrator password.
 
-This is application-level at-rest protection. The random master secret prevents the encryption key from being recreated from the public MAC/chip ID alone, but a complete physical flash/NVS extraction may still expose enough material to recover application secrets. ESP32 Secure Boot and hardware flash encryption are still required when resistance to physical-device extraction is needed.
+This is application-level at-rest protection. The random master secret prevents the encryption key from being recreated from the public MAC/chip ID alone, but a complete physical flash/NVS extraction may still expose enough material to recover application secrets. If the critical hotspot/admin secrets cannot be decrypted, RangeLink32 enters serial-assisted recovery with random credentials instead of silently falling back to known factory passwords. Factory reset clears both the normal settings namespace and the credential-master namespace. ESP32 Secure Boot and hardware flash encryption are still required when resistance to physical-device extraction is needed.
 
 ## Local administration
 

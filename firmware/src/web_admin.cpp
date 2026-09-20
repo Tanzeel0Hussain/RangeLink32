@@ -158,9 +158,21 @@ input{width:100%;margin-top:6px;background:#091623;border:1px solid #294157;colo
 button{width:100%;margin-top:18px;border:0;border-radius:11px;padding:13px;background:linear-gradient(135deg,#0b78ff,#20d9ff);color:#041019;font-weight:900;cursor:pointer}
 .note{margin-top:15px;padding:12px;border-radius:11px;background:#0a2034;color:#8faabd;font-size:.8rem}
 </style></head><body><main class="wrap"><section class="card">
-<div class="badge">Mandatory first-boot security</div>
-<h1>Secure RangeLink32 before using it.</h1>
-<p>The factory credentials are public setup credentials. Choose a new hotspot password and a different admin password before the normal dashboard is unlocked.</p>
+<div class="badge">)HTML";
+  html += credentialRecoveryRequired()
+    ? "Credential recovery"
+    : "Mandatory first-boot security";
+  html += R"HTML(</div>
+<h1>)HTML";
+  html += credentialRecoveryRequired()
+    ? "Recover RangeLink32 securely."
+    : "Secure RangeLink32 before using it.";
+  html += R"HTML(</h1>
+<p>)HTML";
+  html += credentialRecoveryRequired()
+    ? "Stored credentials could not be decrypted. Random recovery credentials were printed to the physical serial console. Set new hotspot and admin credentials now; public factory passwords are not used as a fallback."
+    : "The factory credentials are public setup credentials. Choose a new hotspot password and a different admin password before the normal dashboard is unlocked.";
+  html += R"HTML(</p>
 <form method="post" action="/setup/security">
 <input type="hidden" name="csrf" value=")HTML";
   html += csrfToken;
@@ -304,7 +316,7 @@ small{color:var(--muted);line-height:1.5}@media(max-width:850px){.grid{grid-temp
 <section class="card">
 <h3>DNS Settings</h3>
 <form method="post" action="/settings/dns">
-<label><small>Custom downstream DNS IPv4 address. Leave blank to use 1.1.1.1.</small></label>
+<label><small>Custom downstream DNS IPv4 address. Leave blank to inherit upstream DNS; 1.1.1.1 is used only as a fallback.</small></label>
 <input name="dns" value=")HTML" + RangeLinkText::htmlEscape(getCustomDns()) + R"HTML(" placeholder="e.g. 1.1.1.1">
 <button class="btn" type="submit">Save DNS & Restart</button>
 </form>
@@ -312,6 +324,7 @@ small{color:var(--muted);line-height:1.5}@media(max-width:850px){.grid{grid-temp
 
 <section class="card">
 <h3>Time & Scheduling</h3>
+<p><small>Clock status: <b>)HTML" + String(accessControlTimeSynchronized() ? "Synchronized" : "Waiting for NTP") + R"HTML(</b>. Scheduled devices fail closed until trusted time is synchronized.</small></p>
 <form method="post" action="/settings/timezone">
 <label><small>Timezone offset from UTC in minutes (Pakistan = 300)</small></label>
 <input name="minutes" type="number" min="-720" max="840" value=")HTML" + String(getTimezoneOffsetMinutes()) + R"HTML(" required>
@@ -1384,7 +1397,7 @@ void webAdminBegin() {
     server.send(
       200,
       "text/html",
-      "<h2>Factory reset complete.</h2><p>RangeLink32 is restarting with default development settings.</p>"
+      "<h2>Factory reset complete.</h2><p>RangeLink32 is restarting with fresh setup credentials and a newly generated credential-encryption master key.</p>"
     );
     scheduleRestart(false);
   });
