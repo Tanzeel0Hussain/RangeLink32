@@ -847,7 +847,16 @@ void webAdminBegin() {
 
   server.on("/profile/forget", HTTP_POST, []() {
     if (!requireAdmin()) return;
-    forgetSavedProfile(server.arg("ssid"));
+
+    if (!forgetSavedProfile(server.arg("ssid"))) {
+      server.send(
+        500,
+        "text/plain",
+        "Could not remove the saved network."
+      );
+      return;
+    }
+
     server.sendHeader("Location", "/");
     server.send(303);
   });
@@ -855,11 +864,20 @@ void webAdminBegin() {
   server.on("/access/mode", HTTP_POST, []() {
     if (!requireAdmin()) return;
 
-    setAccessMode(
-      server.arg("mode") == "allowlist"
-        ? AccessMode::AllowlistOnly
-        : AccessMode::AllowAll
-    );
+    if (
+      !setAccessMode(
+        server.arg("mode") == "allowlist"
+          ? AccessMode::AllowlistOnly
+          : AccessMode::AllowAll
+      )
+    ) {
+      server.send(
+        500,
+        "text/plain",
+        "Could not persist access mode."
+      );
+      return;
+    }
 
     server.sendHeader("Location", "/");
     server.send(303);
@@ -868,10 +886,19 @@ void webAdminBegin() {
   server.on("/client/approve", HTTP_POST, []() {
     if (!requireAdmin()) return;
 
-    setClientApproval(
-      server.arg("mac"),
-      server.arg("approved") == "1"
-    );
+    if (
+      !setClientApproval(
+        server.arg("mac"),
+        server.arg("approved") == "1"
+      )
+    ) {
+      server.send(
+        500,
+        "text/plain",
+        "Could not persist device approval."
+      );
+      return;
+    }
 
     server.sendHeader("Location", "/");
     server.send(303);
@@ -880,10 +907,19 @@ void webAdminBegin() {
   server.on("/client/block", HTTP_POST, []() {
     if (!requireAdmin()) return;
 
-    setClientBlocked(
-      server.arg("mac"),
-      server.arg("blocked") == "1"
-    );
+    if (
+      !setClientBlocked(
+        server.arg("mac"),
+        server.arg("blocked") == "1"
+      )
+    ) {
+      server.send(
+        500,
+        "text/plain",
+        "Could not persist device block state."
+      );
+      return;
+    }
 
     server.sendHeader("Location", "/");
     server.send(303);
@@ -892,10 +928,19 @@ void webAdminBegin() {
   server.on("/client/name", HTTP_POST, []() {
     if (!requireAdmin()) return;
 
-    setClientName(
-      server.arg("mac"),
-      server.arg("name")
-    );
+    if (
+      !setClientName(
+        server.arg("mac"),
+        server.arg("name")
+      )
+    ) {
+      server.send(
+        500,
+        "text/plain",
+        "Could not persist device name."
+      );
+      return;
+    }
 
     server.sendHeader("Location", "/");
     server.send(303);
@@ -1054,12 +1099,21 @@ void webAdminBegin() {
       return;
     }
 
-    setClientSchedule(
-      server.arg("mac"),
-      enabled,
-      static_cast<uint8_t>(start),
-      static_cast<uint8_t>(end)
-    );
+    if (
+      !setClientSchedule(
+        server.arg("mac"),
+        enabled,
+        static_cast<uint8_t>(start),
+        static_cast<uint8_t>(end)
+      )
+    ) {
+      server.send(
+        500,
+        "text/plain",
+        "Could not persist device schedule."
+      );
+      return;
+    }
 
     server.sendHeader("Location", "/");
     server.send(303);
@@ -1094,9 +1148,18 @@ void webAdminBegin() {
   server.on("/client/reset-monthly", HTTP_POST, []() {
     if (!requireAdmin()) return;
 
-    resetClientMonthlyUsage(
-      server.arg("mac")
-    );
+    if (
+      !resetClientMonthlyUsage(
+        server.arg("mac")
+      )
+    ) {
+      server.send(
+        500,
+        "text/plain",
+        "Could not persist monthly usage reset."
+      );
+      return;
+    }
 
     server.sendHeader("Location", "/");
     server.send(303);
@@ -1105,10 +1168,19 @@ void webAdminBegin() {
   server.on("/client/reset-usage", HTTP_POST, []() {
     if (!requireAdmin()) return;
 
-    resetClientUsage(
-      server.arg("mac"),
-      server.arg("total") == "1"
-    );
+    if (
+      !resetClientUsage(
+        server.arg("mac"),
+        server.arg("total") == "1"
+      )
+    ) {
+      server.send(
+        500,
+        "text/plain",
+        "Could not persist usage reset."
+      );
+      return;
+    }
 
     server.sendHeader("Location", "/");
     server.send(303);
@@ -1243,7 +1315,15 @@ void webAdminBegin() {
       return;
     }
 
-    setTimezoneOffsetMinutes(minutes);
+    if (!setTimezoneOffsetMinutes(minutes)) {
+      server.send(
+        500,
+        "text/plain",
+        "Could not persist timezone setting."
+      );
+      return;
+    }
+
     appendEventLog(
       "settings",
       "Timezone changed to UTC offset " +
