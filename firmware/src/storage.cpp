@@ -1,5 +1,7 @@
 #include <Preferences.h>
 #include <esp_system.h>
+#include <cerrno>
+#include <climits>
 #include "storage.h"
 #include "config.h"
 #include "crypto_store.h"
@@ -160,30 +162,40 @@ void clearClientSlot(size_t index) {
   }
 }
 
-void writeClientSlot(size_t index, const ClientRecord& record) {
-  prefs.putString(clientKey(index, "m").c_str(), record.mac);
-  prefs.putString(clientKey(index, "n").c_str(), record.hostname);
-  prefs.putBool(clientKey(index, "a").c_str(), record.approved);
-  prefs.putBool(clientKey(index, "b").c_str(), record.blocked);
+bool writeClientSlot(size_t index, const ClientRecord& record) {
+  bool ok = true;
 
-  prefs.putULong64(clientKey(index, "rx").c_str(), record.rxBytes);
-  prefs.putULong64(clientKey(index, "tx").c_str(), record.txBytes);
-  prefs.putULong64(clientKey(index, "dr").c_str(), record.dailyRxBytes);
-  prefs.putULong64(clientKey(index, "dt").c_str(), record.dailyTxBytes);
-  prefs.putULong64(clientKey(index, "q").c_str(), record.dailyQuotaBytes);
+  ok &= prefs.putString(clientKey(index, "m").c_str(), record.mac) > 0;
+  // Empty device names are valid; Preferences returns 0 for an empty string.
+  if (record.hostname.length()) {
+    ok &= prefs.putString(clientKey(index, "n").c_str(), record.hostname) > 0;
+  } else {
+    prefs.remove(clientKey(index, "n").c_str());
+  }
 
-  prefs.putULong64(clientKey(index, "mr").c_str(), record.monthlyRxBytes);
-  prefs.putULong64(clientKey(index, "mt").c_str(), record.monthlyTxBytes);
-  prefs.putULong64(clientKey(index, "mq").c_str(), record.monthlyQuotaBytes);
+  ok &= prefs.putBool(clientKey(index, "a").c_str(), record.approved) > 0;
+  ok &= prefs.putBool(clientKey(index, "b").c_str(), record.blocked) > 0;
 
-  prefs.putUInt(clientKey(index, "bw").c_str(), record.bandwidthKbps);
-  prefs.putUInt(clientKey(index, "gu").c_str(), record.guestUntilEpoch);
-  prefs.putInt(clientKey(index, "day").c_str(), record.usageDay);
-  prefs.putInt(clientKey(index, "mon").c_str(), record.usageMonth);
+  ok &= prefs.putULong64(clientKey(index, "rx").c_str(), record.rxBytes) > 0;
+  ok &= prefs.putULong64(clientKey(index, "tx").c_str(), record.txBytes) > 0;
+  ok &= prefs.putULong64(clientKey(index, "dr").c_str(), record.dailyRxBytes) > 0;
+  ok &= prefs.putULong64(clientKey(index, "dt").c_str(), record.dailyTxBytes) > 0;
+  ok &= prefs.putULong64(clientKey(index, "q").c_str(), record.dailyQuotaBytes) > 0;
 
-  prefs.putBool(clientKey(index, "se").c_str(), record.scheduleEnabled);
-  prefs.putUChar(clientKey(index, "sh").c_str(), record.scheduleStartHour);
-  prefs.putUChar(clientKey(index, "eh").c_str(), record.scheduleEndHour);
+  ok &= prefs.putULong64(clientKey(index, "mr").c_str(), record.monthlyRxBytes) > 0;
+  ok &= prefs.putULong64(clientKey(index, "mt").c_str(), record.monthlyTxBytes) > 0;
+  ok &= prefs.putULong64(clientKey(index, "mq").c_str(), record.monthlyQuotaBytes) > 0;
+
+  ok &= prefs.putUInt(clientKey(index, "bw").c_str(), record.bandwidthKbps) > 0;
+  ok &= prefs.putUInt(clientKey(index, "gu").c_str(), record.guestUntilEpoch) > 0;
+  ok &= prefs.putInt(clientKey(index, "day").c_str(), record.usageDay) > 0;
+  ok &= prefs.putInt(clientKey(index, "mon").c_str(), record.usageMonth) > 0;
+
+  ok &= prefs.putBool(clientKey(index, "se").c_str(), record.scheduleEnabled) > 0;
+  ok &= prefs.putUChar(clientKey(index, "sh").c_str(), record.scheduleStartHour) > 0;
+  ok &= prefs.putUChar(clientKey(index, "eh").c_str(), record.scheduleEndHour) > 0;
+
+  return ok;
 }
 }
 
@@ -1046,6 +1058,195 @@ String exportSafeSettings() {
   return output;
 }
 
+namespace {
+
+bool parseLongStrict(
+  const String& value,
+  long minimum,
+  long maximum,
+  long& output
+) {
+  if (value.length() == 0) return false;
+
+  errno = 0;
+  char* end = nullptr;
+  const long parsed =
+    strtol(value.c_str(), &end, 10);
+
+  if (
+    errno == ERANGE ||
+    end == value.c_str() ||
+    !end ||
+    *end != '\0' ||
+    parsed < minimum ||
+    parsed > maximum
+  ) {
+    return false;
+  }
+
+  output = parsed;
+  return true;
+}
+
+bool parseUint64Strict(
+  const String& value,
+  uint64_t maximum,
+  uint64_t& output
+) {
+  if (
+    value.length() == 0 ||
+    value[0] == '-'
+  ) {
+    return false;
+  }
+
+  errno = 0;
+  char* end = nullptr;
+
+  const unsigned long long parsed =
+    strtoull(
+      value.c_str(),
+      &end,
+      10
+    );
+
+  if (
+    errno == ERANGE ||
+    end == value.c_str() ||
+    !end ||
+    *end != '\0' ||
+    parsed > maximum
+  ) {
+    return false;
+  }
+
+  output = static_cast<uint64_t>(parsed);
+  return true;
+}
+
+bool validMacText(const String& mac) {
+  if (mac.length() != 17) return false;
+
+  for (size_t i = 0; i < mac.length(); ++i) {
+    const bool separator =
+      i == 2 || i == 5 || i == 8 ||
+      i == 11 || i == 14;
+
+    if (separator) {
+      if (mac[i] != ':') return false;
+      continue;
+    }
+
+    const char c = mac[i];
+    const bool hex =
+      (c >= '0' && c <= '9') ||
+      (c >= 'a' && c <= 'f') ||
+      (c >= 'A' && c <= 'F');
+
+    if (!hex) return false;
+  }
+
+  return true;
+}
+
+bool sameMac(
+  const ClientRecord& a,
+  const ClientRecord& b
+) {
+  return a.mac.equalsIgnoreCase(b.mac);
+}
+
+bool replaceClientPoliciesChecked(
+  const ClientRecord* records,
+  size_t count
+) {
+  if (
+    count >
+    RangeLinkConfig::MAX_CLIENT_RECORDS
+  ) {
+    return false;
+  }
+
+  for (
+    size_t i = 0;
+    i < RangeLinkConfig::MAX_CLIENT_RECORDS;
+    ++i
+  ) {
+    clearClientSlot(i);
+  }
+
+  if (prefs.putUChar("client_n", 0) == 0) {
+    return false;
+  }
+
+  for (size_t i = 0; i < count; ++i) {
+    if (!writeClientSlot(i, records[i])) {
+      return false;
+    }
+  }
+
+  return
+    prefs.putUChar(
+      "client_n",
+      static_cast<uint8_t>(count)
+    ) > 0;
+}
+
+bool applyRestoredSettings(
+  const String& apSsid,
+  const String& adminUser,
+  int timezoneMinutes,
+  const String& customDns,
+  uint8_t accessMode,
+  const ClientRecord* clients,
+  size_t clientCount
+) {
+  bool ok = true;
+
+  ok &=
+    prefs.putString(
+      "ap_ssid",
+      apSsid
+    ) > 0;
+
+  ok &=
+    prefs.putString(
+      "admin_user",
+      adminUser
+    ) > 0;
+
+  ok &=
+    prefs.putInt(
+      "tz_min",
+      timezoneMinutes
+    ) > 0;
+
+  if (customDns.length()) {
+    ok &=
+      prefs.putString(
+        "dns",
+        customDns
+      ) > 0;
+  } else {
+    prefs.remove("dns");
+  }
+
+  ok &=
+    prefs.putUChar(
+      "access_mode",
+      accessMode
+    ) > 0;
+
+  if (!ok) return false;
+
+  return replaceClientPoliciesChecked(
+    clients,
+    clientCount
+  );
+}
+
+}  // namespace
+
 bool importSafeSettings(
   const String& text
 ) {
@@ -1060,13 +1261,33 @@ bool importSafeSettings(
   }
 
   const bool backupV1 =
-    text.startsWith("RANGELINK32_BACKUP_V1");
+    text.startsWith(
+      "RANGELINK32_BACKUP_V1"
+    );
+
   const bool backupV2 =
-    text.startsWith("RANGELINK32_BACKUP_V2");
+    text.startsWith(
+      "RANGELINK32_BACKUP_V2"
+    );
 
   if (!backupV1 && !backupV2) {
     return false;
   }
+
+  // Stage everything in RAM first. No NVS state is touched
+  // until the complete backup has passed validation.
+  String stagedApSsid = getApSsid();
+  String stagedAdminUser = getAdminUser();
+  int stagedTimezone =
+    getTimezoneOffsetMinutes();
+  String stagedDns = getCustomDns();
+  uint8_t stagedAccess =
+    getStoredAccessMode();
+
+  ClientRecord stagedClients[
+    RangeLinkConfig::MAX_CLIENT_RECORDS
+  ];
+  size_t stagedClientCount = 0;
 
   int cursor = 0;
 
@@ -1100,7 +1321,7 @@ bool importSafeSettings(
     }
 
     const int eq = line.indexOf('=');
-    if (eq < 0) continue;
+    if (eq <= 0) return false;
 
     const String key =
       line.substring(0, eq);
@@ -1109,110 +1330,319 @@ bool importSafeSettings(
       line.substring(eq + 1);
 
     if (key == "ap_ssid") {
-      if (value.length()) {
-        prefs.putString(
-          "ap_ssid",
-          value.substring(0, 32)
-        );
-      }
-    } else if (key == "admin_user") {
-      if (value.length()) {
-        prefs.putString(
-          "admin_user",
-          value.substring(0, 32)
-        );
-      }
-    } else if (
-      key == "timezone_minutes"
-    ) {
-      setTimezoneOffsetMinutes(
-        value.toInt()
-      );
-    } else if (key == "custom_dns") {
-      setCustomDns(value);
-    } else if (key == "access_mode") {
-      setStoredAccessMode(
-        static_cast<uint8_t>(
-          value.toInt() ? 1 : 0
-        )
-      );
-    } else if (key == "client") {
-      String parts[10];
-      int part = 0;
-      int start = 0;
-
-      for (
-        int i = 0;
-        i <= value.length() &&
-        part < 10;
-        ++i
+      if (
+        value.length() == 0 ||
+        value.length() > 32
       ) {
-        if (
-          i == value.length() ||
-          value[i] == '|'
-        ) {
-          parts[part++] =
-            value.substring(start, i);
-          start = i + 1;
+        return false;
+      }
+
+      stagedApSsid = value;
+      continue;
+    }
+
+    if (key == "admin_user") {
+      if (
+        value.length() == 0 ||
+        value.length() > 32
+      ) {
+        return false;
+      }
+
+      stagedAdminUser = value;
+      continue;
+    }
+
+    if (key == "timezone_minutes") {
+      long parsed = 0;
+
+      if (
+        !parseLongStrict(
+          value,
+          -720,
+          840,
+          parsed
+        )
+      ) {
+        return false;
+      }
+
+      stagedTimezone =
+        static_cast<int>(parsed);
+      continue;
+    }
+
+    if (key == "custom_dns") {
+      if (value.length()) {
+        IPAddress parsed;
+        if (!parsed.fromString(value)) {
+          return false;
         }
       }
 
+      stagedDns = value;
+      continue;
+    }
+
+    if (key == "access_mode") {
+      long parsed = 0;
+
       if (
-        part >= 9 &&
-        parts[0].length() == 17
+        !parseLongStrict(
+          value,
+          0,
+          1,
+          parsed
+        )
       ) {
-        ClientRecord record;
-        record.mac = parts[0];
-        record.hostname = parts[1];
-        record.approved =
-          parts[2].toInt() != 0;
-        record.blocked =
-          parts[3].toInt() != 0;
-        record.dailyQuotaBytes =
-          strtoull(
-            parts[4].c_str(),
-            nullptr,
-            10
-          );
+        return false;
+      }
 
-        const bool v2Client =
-          backupV2 && part >= 10;
+      stagedAccess =
+        static_cast<uint8_t>(parsed);
+      continue;
+    }
 
-        record.monthlyQuotaBytes =
-          v2Client
-            ? strtoull(
-                parts[5].c_str(),
-                nullptr,
-                10
-              )
-            : 0;
+    if (key != "client") {
+      // Ignore future unknown keys, but never partially
+      // apply a malformed known setting.
+      continue;
+    }
 
-        const int bwIndex = v2Client ? 6 : 5;
-        const int enabledIndex = v2Client ? 7 : 6;
-        const int startIndex = v2Client ? 8 : 7;
-        const int endIndex = v2Client ? 9 : 8;
+    if (
+      stagedClientCount >=
+      RangeLinkConfig::MAX_CLIENT_RECORDS
+    ) {
+      return false;
+    }
 
-        record.bandwidthKbps =
-          static_cast<uint32_t>(
-            parts[bwIndex].toInt()
-          );
-        record.scheduleEnabled =
-          parts[enabledIndex].toInt() != 0;
-        record.scheduleStartHour =
-          static_cast<uint8_t>(
-            parts[startIndex].toInt()
-          );
-        record.scheduleEndHour =
-          static_cast<uint8_t>(
-            parts[endIndex].toInt()
-          );
+    String parts[10];
+    int partCount = 0;
+    int start = 0;
 
-        saveClientPolicy(record);
+    for (
+      int i = 0;
+      i <= value.length();
+      ++i
+    ) {
+      if (
+        i == value.length() ||
+        value[i] == '|'
+      ) {
+        if (partCount >= 10) {
+          return false;
+        }
+
+        parts[partCount++] =
+          value.substring(start, i);
+        start = i + 1;
       }
     }
+
+    const int expectedParts =
+      backupV2 ? 10 : 9;
+
+    if (partCount != expectedParts) {
+      return false;
+    }
+
+    ClientRecord record;
+    record.mac = parts[0];
+
+    if (!validMacText(record.mac)) {
+      return false;
+    }
+
+    record.hostname = parts[1];
+
+    if (record.hostname.length() > 32) {
+      return false;
+    }
+
+    for (
+      size_t i = 0;
+      i < stagedClientCount;
+      ++i
+    ) {
+      if (
+        stagedClients[i].mac
+          .equalsIgnoreCase(record.mac)
+      ) {
+        return false;
+      }
+    }
+
+    long approved = 0;
+    long blocked = 0;
+
+    if (
+      !parseLongStrict(parts[2], 0, 1, approved) ||
+      !parseLongStrict(parts[3], 0, 1, blocked)
+    ) {
+      return false;
+    }
+
+    record.approved = approved == 1;
+    record.blocked = blocked == 1;
+
+    uint64_t dailyQuota = 0;
+    if (
+      !parseUint64Strict(
+        parts[4],
+        UINT64_MAX,
+        dailyQuota
+      )
+    ) {
+      return false;
+    }
+
+    record.dailyQuotaBytes =
+      dailyQuota;
+
+    const bool v2Client =
+      backupV2;
+
+    const int monthlyIndex =
+      v2Client ? 5 : -1;
+    const int bandwidthIndex =
+      v2Client ? 6 : 5;
+    const int enabledIndex =
+      v2Client ? 7 : 6;
+    const int startIndex =
+      v2Client ? 8 : 7;
+    const int endIndex =
+      v2Client ? 9 : 8;
+
+    if (v2Client) {
+      uint64_t monthlyQuota = 0;
+
+      if (
+        !parseUint64Strict(
+          parts[monthlyIndex],
+          UINT64_MAX,
+          monthlyQuota
+        )
+      ) {
+        return false;
+      }
+
+      record.monthlyQuotaBytes =
+        monthlyQuota;
+    }
+
+    uint64_t bandwidth = 0;
+    if (
+      !parseUint64Strict(
+        parts[bandwidthIndex],
+        UINT32_MAX,
+        bandwidth
+      )
+    ) {
+      return false;
+    }
+
+    record.bandwidthKbps =
+      static_cast<uint32_t>(bandwidth);
+
+    long enabled = 0;
+    long startHour = 0;
+    long endHour = 0;
+
+    if (
+      !parseLongStrict(
+        parts[enabledIndex],
+        0,
+        1,
+        enabled
+      ) ||
+      !parseLongStrict(
+        parts[startIndex],
+        0,
+        23,
+        startHour
+      ) ||
+      !parseLongStrict(
+        parts[endIndex],
+        0,
+        24,
+        endHour
+      )
+    ) {
+      return false;
+    }
+
+    record.scheduleEnabled =
+      enabled == 1;
+
+    record.scheduleStartHour =
+      static_cast<uint8_t>(startHour);
+
+    record.scheduleEndHour =
+      static_cast<uint8_t>(endHour);
+
+    stagedClients[
+      stagedClientCount++
+    ] = record;
   }
 
-  return true;
+  // Snapshot current restorable state for rollback.
+  const String oldApSsid =
+    prefs.getString(
+      "ap_ssid",
+      RangeLinkConfig::DEFAULT_AP_SSID
+    );
+
+  const String oldAdminUser =
+    prefs.getString(
+      "admin_user",
+      RangeLinkConfig::DEFAULT_ADMIN_USER
+    );
+
+  const int oldTimezone =
+    getTimezoneOffsetMinutes();
+
+  const String oldDns =
+    getCustomDns();
+
+  const uint8_t oldAccess =
+    getStoredAccessMode();
+
+  ClientRecord oldClients[
+    RangeLinkConfig::MAX_CLIENT_RECORDS
+  ];
+
+  const size_t oldClientCount =
+    loadClientPolicies(
+      oldClients,
+      RangeLinkConfig::MAX_CLIENT_RECORDS
+    );
+
+  if (
+    applyRestoredSettings(
+      stagedApSsid,
+      stagedAdminUser,
+      stagedTimezone,
+      stagedDns,
+      stagedAccess,
+      stagedClients,
+      stagedClientCount
+    )
+  ) {
+    return true;
+  }
+
+  // Best-effort rollback if NVS reports a write failure.
+  applyRestoredSettings(
+    oldApSsid,
+    oldAdminUser,
+    oldTimezone,
+    oldDns,
+    oldAccess,
+    oldClients,
+    oldClientCount
+  );
+
+  return false;
 }
 
 void factoryResetStorage() {
