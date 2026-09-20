@@ -590,13 +590,16 @@ AccessMode getAccessMode() {
   return mode;
 }
 
-void setAccessMode(AccessMode newMode) {
+bool setAccessMode(AccessMode newMode) {
+  if (
+    !setStoredAccessMode(
+      static_cast<uint8_t>(newMode)
+    )
+  ) {
+    return false;
+  }
+
   mode = newMode;
-
-  setStoredAccessMode(
-    static_cast<uint8_t>(newMode)
-  );
-
   updateDefaultInternetFallback();
 
   appendEventLog(
@@ -607,6 +610,7 @@ void setAccessMode(AccessMode newMode) {
   );
 
   refreshClients();
+  return true;
 }
 
 bool setClientApproval(
