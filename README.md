@@ -1,6 +1,6 @@
 <div align="center">
 
-<a href="https://tanzeel0hussain.github.io/RangeLink32/"><img src="./assets/rangelink32-readme-hero.svg" alt="RangeLink32 — Smart ESP32U Wi-Fi Extender & Managed Gateway" width="100%"></a>
+<a href="https://tanzeel0hussain.github.io/RangeLink32/"><img src="./assets/rangelink32-hero.webp" alt="RangeLink32 — Smart ESP32U Wi-Fi Extender & Managed Gateway" width="100%"></a>
 
 # RangeLink32
 
@@ -280,7 +280,6 @@ For stronger resistance to physical flash extraction, ESP32 Secure Boot and hard
 ```text
 RangeLink32/
 ├── assets/
-│   ├── rangelink32-readme-hero.svg
 │   ├── rangelink32-hero.webp
 │   ├── 01-dashboard-overview.webp
 │   ├── 02-mobile-responsive-view.webp

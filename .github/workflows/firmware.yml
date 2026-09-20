@@ -33,17 +33,64 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
       - name: Install PlatformIO
         run: pip install platformio esptool
+
+      - name: Verify stable browser firmware matches VERSION tag
+        if: github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "$(git log -1 --pretty=%s)" == release:* ]]; then
+            echo "Release-preparation commit: browser firmware will be refreshed later in this job."
+            exit 0
+          fi
+
+          VERSION="$(tr -d '[:space:]' < VERSION)"
+          TAG="v$VERSION"
+          git fetch --tags origin
+
+          if ! git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "::error::Stable VERSION tag $TAG is missing."
+            exit 1
+          fi
+
+          for file in             docs/firmware/bootloader.bin             docs/firmware/partitions.bin             docs/firmware/boot_app0.bin             docs/firmware/firmware.bin             docs/firmware/rangelink32-full.bin             docs/firmware/rangelink32-ota.bin
+          do
+            tmp="$(mktemp)"
+            git show "$TAG:$file" > "$tmp"
+
+            if ! cmp -s "$file" "$tmp"; then
+              echo "::error::$file differs from stable $TAG. Browser installer must remain pinned to the current release."
+              rm -f "$tmp"
+              exit 1
+            fi
+
+            rm -f "$tmp"
+          done
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          version = Path("VERSION").read_text().strip()
+          manifest = json.loads(Path("manifest.json").read_text())
+          if manifest.get("version") != version:
+              raise SystemExit(
+                  f"manifest version {manifest.get('version')} != VERSION {version}"
+              )
+          print(f"Stable browser firmware matches v{version}")
+          PY
 
       - name: Run host logic tests
         run: |
@@ -93,7 +140,7 @@ jobs:
             0x10000 "$WEB/firmware.bin"
 
       - name: Upload firmware artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: rangelink32-${{ github.ref_name }}-firmware
           path: |
@@ -105,7 +152,7 @@ jobs:
             docs/firmware/firmware.bin
 
       - name: Update browser-installable firmware
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'release:')
         shell: bash
         run: |
           set -euo pipefail
@@ -147,7 +194,7 @@ jobs:
           git push origin "$TAG"
 
       - name: Publish current VERSION release when tag exists
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'release:')
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
