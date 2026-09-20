@@ -13,7 +13,7 @@ void accessControlFlush();
 bool accessControlTimeSynchronized();
 
 AccessMode getAccessMode();
-void setAccessMode(AccessMode mode);
+bool setAccessMode(AccessMode mode);
 
 bool setClientApproval(const String& mac, bool approved);
 bool setClientBlocked(const String& mac, bool blocked);
