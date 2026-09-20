@@ -110,34 +110,73 @@ String clientKey(size_t index, const char* suffix) {
   return "c" + String(index) + suffix;
 }
 
-void writeWifiSlot(size_t index, const WifiProfile& profile) {
-  prefs.putString(wifiKey(index, "s").c_str(), profile.ssid);
-  prefs.putBool(
-    wifiKey(index, "o").c_str(),
-    profile.openNetwork
-  );
+bool writeWifiSlot(size_t index, const WifiProfile& profile) {
+  bool ok = true;
+
+  ok &=
+    prefs.putString(
+      wifiKey(index, "s").c_str(),
+      profile.ssid
+    ) > 0;
+
+  ok &=
+    prefs.putBool(
+      wifiKey(index, "o").c_str(),
+      profile.openNetwork
+    ) > 0;
+
+  const String passwordKey =
+    wifiKey(index, "p");
 
   if (profile.openNetwork) {
-    prefs.remove(
-      wifiKey(index, "p").c_str()
-    );
+    prefs.remove(passwordKey.c_str());
+    ok &= !prefs.isKey(passwordKey.c_str());
   } else {
     const String protectedSecret =
       protectSecret(profile.secret);
 
-    if (protectedSecret.length() > 0) {
-      prefs.putString(
-        wifiKey(index, "p").c_str(),
-        protectedSecret
-      );
+    if (!protectedSecret.length()) {
+      return false;
     }
+
+    ok &=
+      prefs.putString(
+        passwordKey.c_str(),
+        protectedSecret
+      ) > 0;
   }
 
-  prefs.putInt(wifiKey(index, "q").c_str(), profile.priority);
-  prefs.putInt(wifiKey(index, "r").c_str(), profile.lastRssi);
-  prefs.putBool(wifiKey(index, "e").c_str(), profile.enabled);
-  prefs.putULong64(wifiKey(index, "rx").c_str(), profile.rxBytes);
-  prefs.putULong64(wifiKey(index, "tx").c_str(), profile.txBytes);
+  ok &=
+    prefs.putInt(
+      wifiKey(index, "q").c_str(),
+      profile.priority
+    ) > 0;
+
+  ok &=
+    prefs.putInt(
+      wifiKey(index, "r").c_str(),
+      profile.lastRssi
+    ) > 0;
+
+  ok &=
+    prefs.putBool(
+      wifiKey(index, "e").c_str(),
+      profile.enabled
+    ) > 0;
+
+  ok &=
+    prefs.putULong64(
+      wifiKey(index, "rx").c_str(),
+      profile.rxBytes
+    ) > 0;
+
+  ok &=
+    prefs.putULong64(
+      wifiKey(index, "tx").c_str(),
+      profile.txBytes
+    ) > 0;
+
+  return ok;
 }
 
 void clearWifiSlot(size_t index) {
@@ -423,13 +462,39 @@ bool setApCredentials(const String& ssid, const String& password) {
     return false;
   }
 
-  prefs.putString("ap_ssid", ssid);
-  prefs.putString(
-    "ap_pass",
-    protectedPassword
-  );
+  const String oldSsid =
+    prefs.getString("ap_ssid", "");
+  const String oldPassword =
+    prefs.getString("ap_pass", "");
 
-  return true;
+  const bool ok =
+    prefs.putString("ap_ssid", ssid) > 0 &&
+    prefs.putString(
+      "ap_pass",
+      protectedPassword
+    ) > 0;
+
+  if (ok) return true;
+
+  const bool rollback =
+    oldSsid.length() &&
+    oldPassword.length() &&
+    prefs.putString(
+      "ap_ssid",
+      oldSsid
+    ) > 0 &&
+    prefs.putString(
+      "ap_pass",
+      oldPassword
+    ) > 0;
+
+  if (!rollback) {
+    enterCredentialRecoveryMode(
+      "Hotspot credential update failed and rollback could not be completed."
+    );
+  }
+
+  return false;
 }
 
 bool setAdminCredentials(const String& username, const String& password) {
@@ -452,13 +517,42 @@ bool setAdminCredentials(const String& username, const String& password) {
     return false;
   }
 
-  prefs.putString("admin_user", username);
-  prefs.putString(
-    "admin_pass",
-    protectedPassword
-  );
+  const String oldUser =
+    prefs.getString("admin_user", "");
+  const String oldPassword =
+    prefs.getString("admin_pass", "");
 
-  return true;
+  const bool ok =
+    prefs.putString(
+      "admin_user",
+      username
+    ) > 0 &&
+    prefs.putString(
+      "admin_pass",
+      protectedPassword
+    ) > 0;
+
+  if (ok) return true;
+
+  const bool rollback =
+    oldUser.length() &&
+    oldPassword.length() &&
+    prefs.putString(
+      "admin_user",
+      oldUser
+    ) > 0 &&
+    prefs.putString(
+      "admin_pass",
+      oldPassword
+    ) > 0;
+
+  if (!rollback) {
+    enterCredentialRecoveryMode(
+      "Administrator credential update failed and rollback could not be completed."
+    );
+  }
+
+  return false;
 }
 
 
@@ -508,10 +602,69 @@ bool setInitialCredentials(
     return false;
   }
 
-  prefs.putString("ap_ssid", ssid);
-  prefs.putString("ap_pass", protectedAp);
-  prefs.putString("admin_user", adminUser);
-  prefs.putString("admin_pass", protectedAdmin);
+  const String oldSsid =
+    prefs.getString("ap_ssid", "");
+  const String oldAp =
+    prefs.getString("ap_pass", "");
+  const String oldUser =
+    prefs.getString("admin_user", "");
+  const String oldAdmin =
+    prefs.getString("admin_pass", "");
+
+  bool ok = true;
+
+  ok &=
+    prefs.putString(
+      "ap_ssid",
+      ssid
+    ) > 0;
+  ok &=
+    prefs.putString(
+      "ap_pass",
+      protectedAp
+    ) > 0;
+  ok &=
+    prefs.putString(
+      "admin_user",
+      adminUser
+    ) > 0;
+  ok &=
+    prefs.putString(
+      "admin_pass",
+      protectedAdmin
+    ) > 0;
+
+  if (!ok) {
+    const bool rollback =
+      oldSsid.length() &&
+      oldAp.length() &&
+      oldUser.length() &&
+      oldAdmin.length() &&
+      prefs.putString(
+        "ap_ssid",
+        oldSsid
+      ) > 0 &&
+      prefs.putString(
+        "ap_pass",
+        oldAp
+      ) > 0 &&
+      prefs.putString(
+        "admin_user",
+        oldUser
+      ) > 0 &&
+      prefs.putString(
+        "admin_pass",
+        oldAdmin
+      ) > 0;
+
+    if (!rollback) {
+      enterCredentialRecoveryMode(
+        "Initial credential update failed and rollback could not be completed."
+      );
+    }
+
+    return false;
+  }
 
   credentialRecoveryMode = false;
   recoveryApSsid = "";
@@ -591,8 +744,10 @@ bool saveWifiProfile(const WifiProfile& profile) {
       updated.priority = profiles[i].priority;
       updated.rxBytes = profiles[i].rxBytes;
       updated.txBytes = profiles[i].txBytes;
-      writeWifiSlot(i, updated);
-      return true;
+      return writeWifiSlot(
+        i,
+        updated
+      );
     }
   }
 
@@ -601,8 +756,24 @@ bool saveWifiProfile(const WifiProfile& profile) {
   WifiProfile stored = profile;
   stored.priority = 100 + static_cast<int>(count);
 
-  writeWifiSlot(count, stored);
-  prefs.putUChar("wifi_n", static_cast<uint8_t>(count + 1));
+  if (
+    !writeWifiSlot(
+      count,
+      stored
+    )
+  ) {
+    return false;
+  }
+
+  if (
+    prefs.putUChar(
+      "wifi_n",
+      static_cast<uint8_t>(count + 1)
+    ) == 0
+  ) {
+    clearWifiSlot(count);
+    return false;
+  }
 
   return true;
 }
@@ -663,20 +834,21 @@ bool updateWifiProfileUsage(
           0
         );
 
-      prefs.putULong64(
-        wifiKey(i, "rx").c_str(),
-        rx + rxDelta
-      );
-      prefs.putULong64(
-        wifiKey(i, "tx").c_str(),
-        tx + txDelta
-      );
-      prefs.putInt(
-        wifiKey(i, "r").c_str(),
-        rssi
-      );
+      const bool ok =
+        prefs.putULong64(
+          wifiKey(i, "rx").c_str(),
+          rx + rxDelta
+        ) > 0 &&
+        prefs.putULong64(
+          wifiKey(i, "tx").c_str(),
+          tx + txDelta
+        ) > 0 &&
+        prefs.putInt(
+          wifiKey(i, "r").c_str(),
+          rssi
+        ) > 0;
 
-      return true;
+      return ok;
     }
   }
 
@@ -710,11 +882,11 @@ bool setWifiProfilePriority(
         ""
       ) == ssid
     ) {
-      prefs.putInt(
-        wifiKey(i, "q").c_str(),
-        priority
-      );
-      return true;
+      return
+        prefs.putInt(
+          wifiKey(i, "q").c_str(),
+          priority
+        ) > 0;
     }
   }
 
@@ -738,12 +910,24 @@ bool removeWifiProfile(const String& ssid) {
   if (found == count) return false;
 
   for (size_t i = found; i + 1 < count; ++i) {
-    writeWifiSlot(i, profiles[i + 1]);
+    if (
+      !writeWifiSlot(
+        i,
+        profiles[i + 1]
+      )
+    ) {
+      return false;
+    }
   }
 
   if (count > 0) {
     clearWifiSlot(count - 1);
-    prefs.putUChar("wifi_n", static_cast<uint8_t>(count - 1));
+
+    return
+      prefs.putUChar(
+        "wifi_n",
+        static_cast<uint8_t>(count - 1)
+      ) > 0;
   }
 
   return true;
@@ -753,8 +937,14 @@ uint8_t getStoredAccessMode() {
   return prefs.getUChar("access_mode", 0);
 }
 
-void setStoredAccessMode(uint8_t mode) {
-  prefs.putUChar("access_mode", mode);
+bool setStoredAccessMode(uint8_t mode) {
+  if (mode > 1) return false;
+
+  return
+    prefs.putUChar(
+      "access_mode",
+      mode
+    ) > 0;
 }
 
 size_t loadClientPolicies(ClientRecord* out, size_t maxCount) {
@@ -831,15 +1021,33 @@ bool saveClientPolicy(const ClientRecord& record) {
 
   for (size_t i = 0; i < count; ++i) {
     if (policies[i].mac.equalsIgnoreCase(record.mac)) {
-      writeClientSlot(i, record);
-      return true;
+      return writeClientSlot(
+        i,
+        record
+      );
     }
   }
 
   if (count >= RangeLinkConfig::MAX_CLIENT_RECORDS) return false;
 
-  writeClientSlot(count, record);
-  prefs.putUChar("client_n", static_cast<uint8_t>(count + 1));
+  if (
+    !writeClientSlot(
+      count,
+      record
+    )
+  ) {
+    return false;
+  }
+
+  if (
+    prefs.putUChar(
+      "client_n",
+      static_cast<uint8_t>(count + 1)
+    ) == 0
+  ) {
+    clearClientSlot(count);
+    return false;
+  }
 
   return true;
 }
@@ -865,15 +1073,24 @@ bool removeClientPolicy(const String& mac) {
   if (found == count) return false;
 
   for (size_t i = found; i + 1 < count; ++i) {
-    writeClientSlot(i, policies[i + 1]);
+    if (
+      !writeClientSlot(
+        i,
+        policies[i + 1]
+      )
+    ) {
+      return false;
+    }
   }
 
   if (count > 0) {
     clearClientSlot(count - 1);
-    prefs.putUChar(
-      "client_n",
-      static_cast<uint8_t>(count - 1)
-    );
+
+    return
+      prefs.putUChar(
+        "client_n",
+        static_cast<uint8_t>(count - 1)
+      ) > 0;
   }
 
   return true;
@@ -883,10 +1100,19 @@ int getTimezoneOffsetMinutes() {
   return prefs.getInt("tz_min", 300);
 }
 
-void setTimezoneOffsetMinutes(int minutes) {
-  if (minutes < -720) minutes = -720;
-  if (minutes > 840) minutes = 840;
-  prefs.putInt("tz_min", minutes);
+bool setTimezoneOffsetMinutes(int minutes) {
+  if (
+    minutes < -720 ||
+    minutes > 840
+  ) {
+    return false;
+  }
+
+  return
+    prefs.putInt(
+      "tz_min",
+      minutes
+    ) > 0;
 }
 
 String getCustomDns() {
@@ -895,15 +1121,20 @@ String getCustomDns() {
 
 bool setCustomDns(const String& dns) {
   if (dns.length() == 0) {
-    prefs.putString("dns", "");
-    return true;
+    prefs.remove("dns");
+    return !prefs.isKey("dns");
   }
 
   IPAddress parsed;
-  if (!parsed.fromString(dns)) return false;
+  if (!parsed.fromString(dns)) {
+    return false;
+  }
 
-  prefs.putString("dns", dns);
-  return true;
+  return
+    prefs.putString(
+      "dns",
+      dns
+    ) > 0;
 }
 
 void appendEventLog(const String& type, const String& message) {
