@@ -185,12 +185,27 @@ button{width:100%;margin-top:18px;border:0;border-radius:11px;padding:13px;backg
 <label>New Wi-Fi password (8–63 characters)</label>
 <input name="ap_password" type="password" minlength="8" maxlength="63" autocomplete="new-password" required>
 <label>Admin username</label>
-<input name="admin_user" maxlength="32" value="admin" required>
+<input name="admin_user" maxlength="32" value=")HTML";
+  html += RangeLinkText::htmlEscape(getAdminUser());
+  html += R"HTML(" required>
 <label>New admin password (8–64 characters)</label>
 <input name="admin_password" type="password" minlength="8" maxlength="64" autocomplete="new-password" required>
 <button type="submit">Save Security Settings & Restart</button>
 </form>
-<div class="note">The Wi-Fi and admin passwords must be different and cannot remain the factory defaults. After restart, reconnect using your new Wi-Fi password and sign in at <b>192.168.50.1</b> with the new admin credentials.</div>
+<div class="note">The Wi-Fi and admin passwords must be different and cannot remain the factory defaults. After restart, reconnect using your new Wi-Fi password and sign in at <b>192.168.50.1</b> with the new admin credentials.</div>)HTML";
+
+  if (!credentialRecoveryRequired()) {
+    html += R"HTML(
+<form method="post" action="/setup/skip" style="margin-top:14px">
+<input type="hidden" name="csrf" value=")HTML";
+    html += csrfToken;
+    html += R"HTML(">
+<button type="submit" style="background:transparent;border:1px solid #294157;color:#9cb1c3">Skip for now &mdash; keep current username &amp; password</button>
+</form>
+<div class="note" style="background:#2a1620;color:#f6a9b8">Skipping keeps the current credentials, including the public factory defaults. Anyone nearby could connect or sign in. You can change them anytime under <b>Settings &rarr; Admin login</b> and <b>Wi-Fi</b>.</div>)HTML";
+  }
+
+  html += R"HTML(
 </section></main></body></html>)HTML";
 
   return html;
@@ -708,6 +723,38 @@ void webAdminBegin() {
     );
 
     scheduleRestart();
+  });
+
+  server.on("/setup/skip", HTTP_POST, []() {
+    if (!requireAdmin(true)) return;
+
+    // Recovery mode must never be skippable.
+    if (credentialRecoveryRequired()) {
+      server.send(
+        403,
+        "text/plain",
+        "Credential recovery cannot be skipped. Set new credentials to continue."
+      );
+      return;
+    }
+
+    // Already configured: just go to the dashboard.
+    if (!initialSetupRequired()) {
+      server.sendHeader("Location", "/");
+      server.send(303);
+      return;
+    }
+
+    markInitialSetupSkipped();
+    appendEventLog(
+      "security",
+      "First-boot security setup skipped; current credentials kept"
+    );
+
+    // No restart needed: the dashboard unlocks immediately with the
+    // existing username and password.
+    server.sendHeader("Location", "/");
+    server.send(303);
   });
 
   server.on("/api/networks", HTTP_GET, []() {
