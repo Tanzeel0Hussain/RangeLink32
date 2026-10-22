@@ -559,11 +559,19 @@ bool setAdminCredentials(const String& username, const String& password) {
 bool initialSetupRequired() {
   if (credentialRecoveryMode) return true;
 
+  // Admin chose to skip the first-boot security setup and keep the
+  // current credentials. Recovery mode above is never skippable.
+  if (prefs.getBool("setup_skipped", false)) return false;
+
   return
     getApPassword() ==
       RangeLinkConfig::DEFAULT_AP_PASSWORD ||
     getAdminPassword() ==
       RangeLinkConfig::DEFAULT_ADMIN_PASSWORD;
+}
+
+void markInitialSetupSkipped() {
+  prefs.putBool("setup_skipped", true);
 }
 
 bool setInitialCredentials(
